@@ -140,7 +140,16 @@ function getSongById(id) {
     };
 }
 
+function cleanupOldRooms() {
+    db.prepare(`
+        DELETE FROM rooms 
+        WHERE created_at < datetime('now', '-24 hours')
+    `).run();
+}
+
 function createRoom({ roomId, songId, leaderId }) {
+    cleanupOldRooms(); // Очищаємо старі кімнати при створенні нової
+
     const id = safeText(roomId);
     const sId = Number(songId);
     const lId = safeText(leaderId);
@@ -172,6 +181,22 @@ function getRoom(roomId) {
     `
         )
         .get({ id });
+}
+
+function listRecentRooms(limit = 10) {
+    return db
+        .prepare(
+            `
+      SELECT r.id as roomId, r.song_id as songId, r.leader_id as leaderId, r.created_at as createdAt,
+             s.title as songTitle, s.artist as songArtist
+      FROM rooms r
+      JOIN songs s ON r.song_id = s.id
+      WHERE r.created_at >= datetime('now', '-24 hours')
+      ORDER BY r.created_at DESC
+      LIMIT @limit
+    `
+        )
+        .all({ limit: Number(limit) });
 }
 
 function safeText(v) {
@@ -233,4 +258,5 @@ module.exports = {
     deleteSong,
     createRoom,
     getRoom,
+    listRecentRooms,
 };

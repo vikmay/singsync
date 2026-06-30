@@ -1,6 +1,12 @@
+export type ChordPlacement = {
+    i: number; // index in the text string
+    c: string; // chord string
+};
+
 export type ParsedLine = {
     chords: string;
     text: string;
+    placements?: ChordPlacement[];
 };
 
 // Regex to detect if a word looks like a chord.
@@ -43,23 +49,30 @@ export function parseRawSong(rawText: string): ParsedLine[] {
         }
 
         // 2. ChordPro format check [Am]Hello [C]World
-        // For our simple JSON schema (chords on top of line), we can extract chords from ChordPro and put them in `chords`, removing from `text`.
         if (line.includes('[') && line.includes(']')) {
-            let extractedChords = '';
-            let cleanedText = line;
+            const placements: ChordPlacement[] = [];
+            let text = '';
+            let chordsStr = '';
             
-            // Extract all [Chord] using regex
-            const matches = [...line.matchAll(/\[(.*?)\]/g)];
-            if (matches.length > 0) {
-                extractedChords = matches.map(m => m[1]).join('   ');
-                cleanedText = line.replace(/\[.*?\]/g, '');
-                
-                result.push({
-                    chords: extractedChords.trim(),
-                    text: cleanedText.trim()
-                });
-                continue;
+            // Regex to match [Chord] or text
+            const parts = line.split(/(\[[^\]]+\])/);
+            
+            for (const part of parts) {
+                if (part.startsWith('[') && part.endsWith(']')) {
+                    const chord = part.slice(1, -1);
+                    placements.push({ i: text.length, c: chord });
+                    chordsStr += chord + '   ';
+                } else {
+                    text += part;
+                }
             }
+            
+            result.push({
+                chords: chordsStr.trim(),
+                text: text.trimEnd(),
+                placements
+            });
+            continue;
         }
 
         // 3. Normal text with chords above
@@ -67,19 +80,37 @@ export function parseRawSong(rawText: string): ParsedLine[] {
         if (isChord) {
             // If we already have pending chords but no text, push them as a standalone chord line.
             if (pendingChords) {
-                result.push({ chords: pendingChords.trim(), text: '' });
+                const placements: ChordPlacement[] = [];
+                const chordMatches = [...pendingChords.matchAll(/\S+/g)];
+                for (const match of chordMatches) {
+                    placements.push({ i: match.index || 0, c: match[0] });
+                }
+                result.push({ chords: pendingChords.trim(), text: '', placements });
             }
-            pendingChords = line.trim(); // Just trim for now since UI centers it
+            pendingChords = line; // Preserve spacing for alignment
         } else {
             // It's a text line
-            result.push({ chords: pendingChords.trim(), text: line.trim() });
+            let placements: ChordPlacement[] | undefined = undefined;
+            if (pendingChords.trim()) {
+                placements = [];
+                const chordMatches = [...pendingChords.matchAll(/\S+/g)];
+                for (const match of chordMatches) {
+                    placements.push({ i: match.index || 0, c: match[0] });
+                }
+            }
+            result.push({ chords: pendingChords.trim(), text: line.trimEnd(), placements });
             pendingChords = '';
         }
     }
 
     // If there's a leftover chord line at the end
     if (pendingChords) {
-        result.push({ chords: pendingChords.trim(), text: '' });
+        const placements: ChordPlacement[] = [];
+        const chordMatches = [...pendingChords.matchAll(/\S+/g)];
+        for (const match of chordMatches) {
+            placements.push({ i: match.index || 0, c: match[0] });
+        }
+        result.push({ chords: pendingChords.trim(), text: '', placements });
     }
 
     return result;

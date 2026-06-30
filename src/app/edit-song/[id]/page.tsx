@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { parseRawSong } from '@/lib/chordParser';
+import VisualChordEditor from '@/components/VisualChordEditor';
 import type { SongContentV1, Line } from '@/types/song';
 
 type ApiResponse = { ok?: boolean; error?: string };
@@ -28,6 +29,7 @@ export default function EditSongPage() {
     const [loadingData, setLoadingData] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [isVisualMode, setIsVisualMode] = useState(true);
 
     useEffect(() => {
         if (!songId) return;
@@ -79,7 +81,10 @@ export default function EditSongPage() {
             
             const res = await fetch(`/api/song/${songId}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'x-admin-password': localStorage.getItem('admin_pwd') || ''
+                },
                 body: JSON.stringify({
                     title,
                     artist,
@@ -99,6 +104,24 @@ export default function EditSongPage() {
             setError(e instanceof Error ? e.message : 'Unknown error');
         } finally {
             setSaving(false);
+        }
+    }
+
+    async function deleteSong() {
+        if (!confirm(`Ви впевнені, що хочете видалити пісню "${title}"?`)) return;
+
+        try {
+            const res = await fetch(`/api/song/${songId}`, {
+                method: 'DELETE',
+                headers: {
+                    'x-admin-password': localStorage.getItem('admin_pwd') || ''
+                }
+            });
+            if (!res.ok) throw new Error('Failed to delete song');
+            
+            window.location.href = '/';
+        } catch (e) {
+            alert("Помилка видалення: " + (e instanceof Error ? e.message : String(e)));
         }
     }
 
@@ -147,17 +170,32 @@ export default function EditSongPage() {
                         />
                     </label>
 
-                    <label className="block">
-                        <div className="mb-1 text-sm font-bold">
-                            Текст пісні
+                    <div className="block">
+                        <div className="mb-2 flex items-center justify-between">
+                            <span className="text-sm font-bold">Текст пісні</span>
+                            <button
+                                type="button"
+                                onClick={() => setIsVisualMode(!isVisualMode)}
+                                className="text-xs font-bold underline text-blue-600 dark:text-blue-400"
+                            >
+                                Перемкнути на {isVisualMode ? 'Текстовий режим' : 'Візуальний редактор'}
+                            </button>
                         </div>
-                        <textarea
-                            value={rawLines}
-                            onChange={(e) => setRawLines(e.target.value)}
-                            className="min-h-[400px] w-full resize-y rounded border-2 border-black bg-white px-3 py-2 text-base text-black outline-none font-mono whitespace-pre dark:border-white dark:bg-black dark:text-white"
-                            placeholder={`Am\nHello darkness\nF\nmy old friend\n`}
-                        />
-                    </label>
+                        
+                        {isVisualMode ? (
+                            <VisualChordEditor 
+                                rawLines={rawLines}
+                                onChange={setRawLines}
+                            />
+                        ) : (
+                            <textarea
+                                value={rawLines}
+                                onChange={(e) => setRawLines(e.target.value)}
+                                className="min-h-[280px] w-full resize-y rounded border-2 border-black bg-white px-3 py-2 text-base text-black outline-none font-mono whitespace-pre dark:border-white dark:bg-black dark:text-white"
+                                placeholder={`Am\nHello darkness\nF\nmy old friend\n`}
+                            />
+                        )}
+                    </div>
 
                     <button
                         type="button"
@@ -174,6 +212,14 @@ export default function EditSongPage() {
                     >
                         Скасувати
                     </Link>
+
+                    <button
+                        type="button"
+                        onClick={deleteSong}
+                        className="w-full block rounded border-2 border-red-600 bg-red-50 px-3 py-3 text-center text-sm font-black text-red-600 transition active:translate-x-[1px] active:translate-y-[1px] dark:border-red-400 dark:bg-red-950 dark:text-red-400"
+                    >
+                        Видалити пісню
+                    </button>
                 </div>
             </div>
         </main>

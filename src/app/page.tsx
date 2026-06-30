@@ -12,15 +12,105 @@ type SongListItem = {
     created_at: string;
 };
 
+type ActiveRoom = {
+    roomId: string;
+    songId: number;
+    leaderId: string;
+    createdAt: string;
+    songTitle: string;
+    songArtist: string;
+};
+
+function formatActionLabel(action: string) {
+    switch (action) {
+        case 'down':
+            return 'Свайп/Клавіша: Вниз';
+        case 'up':
+            return 'Свайп/Клавіша: Вгору';
+        case 'pageDown':
+            return 'Свайп/Клавіша: Далі';
+        case 'pageUp':
+            return 'Свайп/Клавіша: Назад';
+        case 'space':
+            return 'Свайп/Клавіша: Space';
+        default:
+            return action;
+    }
+}
+
+
 export default function Home() {
     const router = useRouter();
 
     const [query, setQuery] = useState('');
     const [songs, setSongs] = useState<SongListItem[]>([]);
+    const [activeRooms, setActiveRooms] = useState<ActiveRoom[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [isAdmin, setIsAdmin] = useState(false);
+
+    type Action = 'down' | 'up' | 'pageDown' | 'pageUp' | 'space';
+    const [binding, setBinding] = useState<Record<Action, string>>({
+        down: 'ArrowDown',
+        up: 'ArrowUp',
+        pageDown: 'PageDown',
+        pageUp: 'PageUp',
+        space: ' ',
+    });
+    const [showPedalPanel, setShowPedalPanel] = useState(false);
+    const [waitingForKey, setWaitingForKey] = useState<Action | null>(null);
+
+    useEffect(() => {
+        if (localStorage.getItem('admin_pwd')) {
+            setIsAdmin(true);
+        }
+        const stored = localStorage.getItem('pedal_bindings');
+        if (stored) {
+            try {
+                setBinding(JSON.parse(stored));
+            } catch (e) {
+                // Ignore
+            }
+        }
+    }, []);
+
+    useEffect(() => {
+        function onKeyDown(e: KeyboardEvent) {
+            if (waitingForKey) {
+                e.preventDefault();
+                const key = e.key === ' ' ? ' ' : e.key;
+                const newBinding = { ...binding, [waitingForKey]: key };
+                setBinding(newBinding);
+                localStorage.setItem('pedal_bindings', JSON.stringify(newBinding));
+                setWaitingForKey(null);
+            }
+        }
+        window.addEventListener('keydown', onKeyDown, { passive: false });
+        return () => window.removeEventListener('keydown', onKeyDown as any);
+    }, [binding, waitingForKey]);
 
     const trimmedQuery = useMemo(() => query.trim(), [query]);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        async function loadRooms() {
+            try {
+                const res = await fetch(`/api/rooms/active?limit=5`);
+                if (!res.ok) return;
+                const data = (await res.json()) as { rooms: ActiveRoom[] };
+                if (!cancelled) setActiveRooms(data.rooms);
+            } catch (e) {
+                // Ignore errors for active rooms
+            }
+        }
+        
+        loadRooms();
+
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     useEffect(() => {
         let cancelled = false;
@@ -78,22 +168,6 @@ export default function Home() {
         }
     }
 
-    async function deleteSong(songId: number, title: string) {
-        if (!confirm(`Ви впевнені, що хочете видалити пісню "${title}"?`)) return;
-
-        try {
-            const res = await fetch(`/api/song/${songId}`, {
-                method: 'DELETE',
-            });
-            if (!res.ok) throw new Error('Failed to delete song');
-            
-            // Remove from list
-            setSongs(songs.filter(s => s.id !== songId));
-        } catch (e) {
-            alert("Помилка видалення: " + (e instanceof Error ? e.message : String(e)));
-        }
-    }
-
     return (
         <main className="min-h-screen bg-white text-black dark:bg-black dark:text-white">
             <div className="mx-auto max-w-xl p-4 pb-12">
@@ -112,6 +186,18 @@ export default function Home() {
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center shrink-0">
                             <button
                                 type="button"
+                                onClick={() => setShowPedalPanel(!showPedalPanel)}
+                                className={`flex h-10 w-10 items-center justify-center rounded-lg border-2 text-xl transition active:translate-x-[1px] active:translate-y-[1px] ${
+                                    showPedalPanel ? 'border-blue-500 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : 'border-black bg-white dark:border-white dark:bg-black'
+                                }`}
+                                title="Налаштування педалі"
+                            >
+                                <svg viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current stroke-2">
+                                    <polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                            </button>
+                            <button
+                                type="button"
                                 onClick={() => {
                                     if (songs.length === 0) {
                                         alert('Додайте хоча б одну пісню!');
@@ -122,18 +208,75 @@ export default function Home() {
                                 className="rounded border-2 border-black bg-black px-3 py-2 text-sm font-black text-white transition active:translate-x-[1px] active:translate-y-[1px] dark:border-white dark:bg-white dark:text-black"
                                 title="Створити кімнату та стати ведучим"
                             >
-                                Відкрити кімнату
+                                Створити кімнату
                             </button>
-                            <a
-                                href="/add-song"
-                                className="rounded border-2 border-black bg-white px-3 py-2 text-sm font-black text-black transition active:translate-x-[1px] active:translate-y-[1px] dark:border-white dark:bg-black dark:text-white"
-                                title="Додати пісню"
-                            >
-                                Додати пісню
-                            </a>
+                            {isAdmin && (
+                                <a
+                                    href="/add-song"
+                                    className="rounded border-2 border-black bg-white px-3 py-2 text-sm font-black text-black transition active:translate-x-[1px] active:translate-y-[1px] dark:border-white dark:bg-black dark:text-white"
+                                    title="Додати пісню"
+                                >
+                                    Додати пісню
+                                </a>
+                            )}
                         </div>
                     </div>
                 </header>
+
+                {showPedalPanel && (
+                    <section className="mb-5 rounded border-2 border-black bg-white p-3 text-sm dark:border-white dark:bg-black">
+                        <div className="font-bold mb-2">Налаштування Bluetooth педалі (клавіатури)</div>
+                        <div className="flex flex-wrap items-center gap-2">
+                            {(
+                                [
+                                    'down',
+                                    'up',
+                                    'pageDown',
+                                    'pageUp',
+                                    'space',
+                                ] as Action[]
+                            ).map((a) => (
+                                <button
+                                    key={a}
+                                    type="button"
+                                    onClick={() => setWaitingForKey(a)}
+                                    className="rounded border-2 border-black bg-white px-2 py-1 font-black active:translate-x-[1px] active:translate-y-[1px] dark:border-white dark:bg-black dark:text-white"
+                                    title="Натисніть кнопку — потім будь-яку клавішу/педаль"
+                                >
+                                    {waitingForKey === a ?
+                                        'Натисни...'
+                                    :   `${formatActionLabel(a)}: ${binding[a]}`
+                                    }
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="mt-2 opacity-80">
+                            Space: перемикає швидкість синхро-світу. Arrow/Page:
+                            кроки по рядках. Налаштування зберігаються для всіх кімнат.
+                        </div>
+                    </section>
+                )}
+
+                {activeRooms.length > 0 && (
+                    <section className="mb-6">
+                        <label className="mb-2 block text-sm font-bold text-green-700 dark:text-green-400">
+                            Активні кімнати (можна приєднатися)
+                        </label>
+                        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                            {activeRooms.map((room) => (
+                                <Link
+                                    key={room.roomId}
+                                    href={`/room/${room.roomId}`}
+                                    className="flex items-center gap-2 rounded border-2 border-green-600 bg-green-50 px-3 py-2 text-sm text-green-900 transition active:translate-x-[1px] active:translate-y-[1px] hover:bg-green-100 dark:border-green-400 dark:bg-green-950 dark:text-green-100 dark:hover:bg-green-900 shadow-[3px_3px_0px_#16a34a] dark:shadow-[3px_3px_0px_#4ade80]"
+                                >
+                                    <span className="font-bold text-lg">Кімната №</span>
+                                    <span className="text-xl leading-none font-black text-red-600 dark:text-red-400">{room.roomId}</span>
+                                </Link>
+                            ))}
+                        </div>
+                    </section>
+                )}
 
                 <section className="mb-4">
                     <label className="mb-1 block text-sm font-bold">
@@ -169,35 +312,27 @@ export default function Home() {
                     {songs.map((song) => (
                         <article
                             key={song.id}
-                            className="rounded border-2 border-black bg-white p-3 shadow-[4px_4px_0px_#000] dark:border-white dark:bg-black dark:shadow-[4px_4px_0px_#fff]"
+                            className="rounded border-2 border-black bg-white p-2.5 sm:p-3 shadow-[3px_3px_0px_#000] sm:shadow-[4px_4px_0px_#000] dark:border-white dark:bg-black dark:shadow-[3px_3px_0px_#fff] sm:dark:shadow-[4px_4px_0px_#fff]"
                         >
-                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                                <div className="min-w-0">
-                                    <h2 className="truncate text-xl font-black leading-tight">
+                            <div className="flex items-center justify-between gap-2">
+                                <div className="min-w-0 flex-1">
+                                    <h2 className="truncate text-lg sm:text-xl font-black leading-tight">
                                         {song.title}
                                     </h2>
-                                    <p className="truncate text-sm opacity-80">
+                                    <p className="truncate text-xs sm:text-sm opacity-80">
                                         {song.artist}
                                     </p>
                                 </div>
 
-                                <div className="flex shrink-0 flex-wrap items-center gap-2 sm:flex-nowrap">
+                                {isAdmin && (
                                     <Link
                                         href={`/edit-song/${song.id}`}
-                                        className="shrink-0 flex items-center justify-center rounded border-2 border-black bg-white px-3 py-2 text-sm font-black text-black transition active:translate-x-[1px] active:translate-y-[1px] dark:border-white dark:bg-black dark:text-white"
+                                        className="shrink-0 flex items-center justify-center rounded border-2 border-black bg-white w-10 h-10 text-base font-black text-black transition active:translate-x-[1px] active:translate-y-[1px] dark:border-white dark:bg-black dark:text-white"
                                         title="Редагувати пісню"
                                     >
                                         ✎
                                     </Link>
-                                    <button
-                                        type="button"
-                                        onClick={() => deleteSong(song.id, song.title)}
-                                        className="shrink-0 flex items-center justify-center rounded border-2 border-red-600 bg-white px-3 py-2 text-sm font-black text-red-600 transition active:translate-x-[1px] active:translate-y-[1px] dark:border-red-400 dark:bg-black dark:text-red-400"
-                                        title="Видалити пісню"
-                                    >
-                                        🗑
-                                    </button>
-                                </div>
+                                )}
                             </div>
                         </article>
                     ))}

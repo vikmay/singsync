@@ -17,8 +17,10 @@ const {
     addSong,
     updateSong,
     deleteSong,
+    listRecentRooms,
 } = require("./sqlite");
 
+const cheerio = require("cheerio");
 const { registerSocketHandlers } = require("./socket");
 const {
     getRoomStateSnapshot,
@@ -28,6 +30,7 @@ const {
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
 const DB_PATH = process.env.DB_PATH || "database.sqlite";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin";
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = process.env.HOSTNAME || "0.0.0.0";
@@ -81,6 +84,9 @@ async function main() {
 
             // POST /api/songs { title: string, artist: string, lines: Array<{chords: string, text: string}> }
             app.post("/api/songs", (req, res) => {
+                if (req.headers["x-admin-password"] !== ADMIN_PASSWORD) {
+                    return res.status(401).json({ error: "Unauthorized" });
+                }
                 try {
                     const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
                     const artist = typeof req.body?.artist === "string" ? req.body.artist.trim() : "";
@@ -105,6 +111,9 @@ async function main() {
 
             // PUT /api/song/:id
             app.put("/api/song/:id", (req, res) => {
+                if (req.headers["x-admin-password"] !== ADMIN_PASSWORD) {
+                    return res.status(401).json({ error: "Unauthorized" });
+                }
                 try {
                     const id = req.params.id;
                     const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
@@ -129,6 +138,9 @@ async function main() {
 
             // DELETE /api/song/:id
             app.delete("/api/song/:id", (req, res) => {
+                if (req.headers["x-admin-password"] !== ADMIN_PASSWORD) {
+                    return res.status(401).json({ error: "Unauthorized" });
+                }
                 try {
                     deleteSong(req.params.id);
                     res.json({ ok: true });
@@ -137,7 +149,93 @@ async function main() {
                 }
             });
 
+            // POST /api/parse-link
+            app.post("/api/parse-link", async (req, res) => {
+                if (req.headers["x-admin-password"] !== ADMIN_PASSWORD) {
+                    return res.status(401).json({ error: "Unauthorized" });
+                }
+                try {
+                    const url = req.body?.url;
+                    if (!url) return res.status(400).json({ error: "url is required" });
+
+                    const response = await fetch(url, {
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
+                        }
+                    });
+                    if (!response.ok) throw new Error("Failed to fetch url");
+                    
+                    const buffer = await response.arrayBuffer();
+                    let html = new TextDecoder('utf-8').decode(buffer);
+                    
+                    if (html.toLowerCase().includes('windows-1251')) {
+                        html = new TextDecoder('windows-1251').decode(buffer);
+                    }
+
+                    const $ = cheerio.load(html);
+                    
+                    let title = "";
+                    let artist = "";
+                    let rawLines = "";
+
+                    const hostname = new URL(url).hostname;
+
+                    if (hostname.includes('pisennyk')) {
+                        title = $('h1').text().replace(/акорди|текст/gi, '').trim();
+                        artist = $('.song-artist').text().trim() || $('.breadcrumbs a').eq(1).text().trim() || $('a[href^="/artists/"]').first().text().trim();
+                        rawLines = $('.song-text').text() || $('pre').text();
+                    } else if (hostname.includes('chords.com.ua')) {
+                        const h1 = $('h1').text().trim();
+                        const parts = h1.split('-');
+                        if (parts.length > 1) {
+                            artist = parts[0].trim();
+                            title = parts.slice(1).join('-').replace(/акорди/gi, '').trim();
+                        } else {
+                            title = h1;
+                        }
+                        rawLines = $('.song-text').text() || $('pre').text();
+                    } else if (hostname.includes('pisni.org.ua')) {
+                        title = $('h1').text().trim();
+                        artist = '';
+                        rawLines = $('pre').text() || $('.songword').text();
+                    } else if (hostname.includes('amdm.ru') || hostname.includes('mychords.net')) {
+                        title = $('h1').text().trim();
+                        artist = $('.artist-name').text().trim() || $('h1').parent().find('a').first().text().trim();
+                        rawLines = $('pre').text();
+                    }
+                    
+                    // Generic fallback
+                    if (!rawLines) {
+                        rawLines = $('pre').first().text();
+                    }
+                    if (!rawLines) {
+                        rawLines = $('.song-text').first().text();
+                    }
+                    
+                    if (!title) {
+                        title = $('h1').first().text().trim();
+                    }
+                    if (!title) {
+                        title = $('title').text().replace(/(акорди|chords|текст|пісні|tabs|табулатури)/gi, '').split('|')[0].trim();
+                    }
+
+                    res.json({ title, artist, rawLines: rawLines.trim() });
+                } catch (err) {
+                    res.status(500).json({ error: err.message });
+                }
+            });
+
             // Rooms APIs
+            app.get("/api/rooms/active", (req, res) => {
+                try {
+                    const limit = req.query.limit ? Number(req.query.limit) : 10;
+                    const rooms = listRecentRooms(limit);
+                    res.json({ rooms });
+                } catch {
+                    res.status(500).json({ error: "Failed to fetch active rooms" });
+                }
+            });
+
             // POST /api/room  { roomId?: string, songId: number, leaderId: string }
             app.post("/api/room", (req, res) => {
                 try {

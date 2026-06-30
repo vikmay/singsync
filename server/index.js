@@ -91,6 +91,7 @@ async function main() {
                     const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
                     const artist = typeof req.body?.artist === "string" ? req.body.artist.trim() : "";
                     const lines = Array.isArray(req.body?.lines) ? req.body.lines : [];
+                    const defaultFontScale = typeof req.body?.defaultFontScale === "number" ? req.body.defaultFontScale : 1.0;
 
                     if (!title) return res.status(400).json({ error: "title is required" });
                     if (!artist) return res.status(400).json({ error: "artist is required" });
@@ -99,6 +100,7 @@ async function main() {
                     const content = JSON.stringify({
                         version: 1,
                         lines,
+                        defaultFontScale,
                     });
 
                     addSong({ title, artist, content });
@@ -119,6 +121,7 @@ async function main() {
                     const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
                     const artist = typeof req.body?.artist === "string" ? req.body.artist.trim() : "";
                     const lines = Array.isArray(req.body?.lines) ? req.body.lines : [];
+                    const defaultFontScale = typeof req.body?.defaultFontScale === "number" ? req.body.defaultFontScale : 1.0;
 
                     if (!title) return res.status(400).json({ error: "title is required" });
                     if (!artist) return res.status(400).json({ error: "artist is required" });
@@ -127,6 +130,7 @@ async function main() {
                     const content = JSON.stringify({
                         version: 1,
                         lines,
+                        defaultFontScale,
                     });
 
                     updateSong({ id, title, artist, content });

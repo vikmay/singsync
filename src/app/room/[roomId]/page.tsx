@@ -487,6 +487,11 @@ export default function RoomPage() {
             }
 
             setLines(songLines);
+            if (parsed.defaultFontScale !== undefined) {
+                setFontScale(parsed.defaultFontScale);
+            } else {
+                setFontScale(1.0);
+            }
         }
 
         loadSong();

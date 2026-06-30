@@ -4,6 +4,7 @@ export type SongContentV1 = {
         chords: string;
         text: string;
     }>;
+    defaultFontScale?: number;
 };
 
 export type ParsedSongContent = SongContentV1 | null;

@@ -30,9 +30,11 @@ function parsedLinesToChordPro(lines: ParsedLine[]): string {
 
 export default function VisualChordEditor({
     rawLines,
+    fontScale = 1.0,
     onChange
 }: {
     rawLines: string;
+    fontScale?: number;
     onChange: (val: string) => void;
 }) {
     const [lines, setLines] = useState<ParsedLine[]>([]);
@@ -190,7 +192,7 @@ export default function VisualChordEditor({
             
             const state = dragStateRef.current;
             const deltaX = e.clientX - state.startX;
-            const charWidth = 9.5; 
+            const charWidth = 16.625 * fontScale; // 28px base * ~0.6 (monospace char aspect ratio)
             const charsMoved = Math.round(deltaX / charWidth);
             
             const lineText = lines[state.lineIndex]?.text || '';
@@ -237,7 +239,7 @@ export default function VisualChordEditor({
             window.removeEventListener('pointerup', handleGlobalUp);
             window.removeEventListener('pointercancel', handleGlobalUp);
         };
-    }, [lines, onChange]);
+    }, [lines, onChange, fontScale]);
 
     const handlePointerDown = (e: React.PointerEvent, lineIndex: number, placementIndex: number, initialI: number) => {
         if (e.button !== 0 && e.pointerType === 'mouse') return;
@@ -256,14 +258,14 @@ export default function VisualChordEditor({
     };
 
     return (
-        <div className="flex flex-col gap-4 font-mono text-base border-2 border-black dark:border-white p-3 rounded-lg bg-white dark:bg-black overflow-x-auto min-h-[300px]">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2 border-b-2 border-black/10 dark:border-white/10 pb-4">
-                <p className="text-xs font-bold opacity-60">
+        <div className="flex flex-col border-2 border-black dark:border-white rounded-lg bg-white dark:bg-black overflow-hidden h-full">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-3 border-b-2 border-black/10 dark:border-white/10 shrink-0">
+                <p className="font-bold opacity-60" style={{ fontSize: '0.75rem', lineHeight: '1rem' }}>
                     Клікайте на будь-яку букву в тексті, щоб додати акорд.<br/>
                     Використовуйте &lt; та &gt; біля акорду для пересування.
                 </p>
                 <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-xs font-bold uppercase tracking-wider opacity-60">Тональність:</span>
+                    <span className="font-bold uppercase tracking-wider opacity-60" style={{ fontSize: '0.75rem', lineHeight: '1rem' }}>Тональність:</span>
                     <button 
                         onClick={() => applyTranspose(-1)}
                         className="px-3 py-1 bg-black/5 dark:bg-white/10 hover:bg-black/10 hover:dark:bg-white/20 rounded font-black text-sm transition"
@@ -278,6 +280,11 @@ export default function VisualChordEditor({
                     </button>
                 </div>
             </div>
+
+            <div 
+                className="flex flex-col gap-4 font-mono p-3 overflow-auto flex-1"
+                style={{ fontSize: `${28 * fontScale}px` }}
+            >
             {lines.map((line, lineIndex) => {
                 const placements = line.placements || [];
                 const chars = line.text.split('');
@@ -321,7 +328,7 @@ export default function VisualChordEditor({
                 return (
                     <div key={lineIndex} className="flex flex-col w-full">
                         {blockHeader}
-                        <div className="relative pt-6 mb-2 flex flex-wrap group">
+                        <div className="relative pt-6 mb-2 flex group mx-auto w-fit">
                             <div className="absolute top-0 left-0 right-0 flex pointer-events-none">
                             {placements.map((p, pIdx) => {
                                 const isDraggingThis = draggingChord?.lineIndex === lineIndex && draggingChord?.placementIndex === pIdx;
@@ -348,11 +355,12 @@ export default function VisualChordEditor({
                                             
                                             <button 
                                                 onPointerDown={(e) => handlePointerDown(e, lineIndex, pIdx, p.i)}
-                                                className={`font-black cursor-pointer text-sm touch-none select-none relative z-10 ${
+                                                className={`font-black cursor-pointer touch-none select-none relative z-10 ${
                                                     isDraggingThis 
                                                         ? 'text-transparent' // Hide original text while grabbing indicator shows
                                                         : 'text-blue-700 dark:text-blue-400 hover:underline'
                                                 }`}
+                                                style={{ fontSize: `${18 * fontScale}px` }}
                                             >
                                                 {p.c}
                                             </button>
@@ -367,12 +375,12 @@ export default function VisualChordEditor({
                             })}
                         </div>
 
-                        <div className="flex w-full">
+                        <div className="flex whitespace-pre">
                             {chars.map((char, charIndex) => (
                                 <span 
                                     key={charIndex}
                                     onClick={() => addChord(lineIndex, charIndex)}
-                                    className="cursor-pointer hover:bg-black/10 dark:hover:bg-white/20 whitespace-pre"
+                                    className="cursor-pointer hover:bg-black/10 dark:hover:bg-white/20"
                                     title={`Додати акорд перед "${char}"`}
                                     style={{ width: '1ch', display: 'inline-block', textAlign: 'center' }}
                                 >
@@ -399,6 +407,7 @@ export default function VisualChordEditor({
                     </div>
                 );
             })}
+            </div>
         </div>
     );
 }

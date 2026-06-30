@@ -39,21 +39,6 @@ export default function VisualChordEditor({
 }) {
     const [lines, setLines] = useState<ParsedLine[]>([]);
     const [copiedBlock, setCopiedBlock] = useState<ChordPlacement[][] | null>(null);
-    const [draggingChord, setDraggingChord] = useState<{
-        lineIndex: number;
-        placementIndex: number;
-        startX: number;
-        initialI: number;
-        currentI: number;
-    } | null>(null);
-
-    const dragStateRef = useRef<{
-        lineIndex: number;
-        placementIndex: number;
-        startX: number;
-        initialI: number;
-        currentI: number;
-    } | null>(null);
 
     useEffect(() => {
         setLines(parseRawSong(rawLines));
@@ -186,76 +171,8 @@ export default function VisualChordEditor({
     };
 
     useEffect(() => {
-        const handleGlobalMove = (e: PointerEvent) => {
-            if (!dragStateRef.current) return;
-            e.preventDefault();
-            
-            const state = dragStateRef.current;
-            const deltaX = e.clientX - state.startX;
-            const charWidth = 16.625 * fontScale; // 28px base * ~0.6 (monospace char aspect ratio)
-            const charsMoved = Math.round(deltaX / charWidth);
-            
-            const lineText = lines[state.lineIndex]?.text || '';
-            const newI = Math.max(0, Math.min(lineText.length, state.initialI + charsMoved));
-            
-            if (newI !== state.currentI) {
-                state.currentI = newI;
-                setDraggingChord({ ...state });
-            }
-        };
-
-        const handleGlobalUp = (e: PointerEvent) => {
-            if (!dragStateRef.current) return;
-            const state = dragStateRef.current;
-            dragStateRef.current = null;
-            setDraggingChord(null);
-
-            const deltaX = Math.abs(e.clientX - state.startX);
-
-            if (state.currentI !== state.initialI) {
-                setLines(prevLines => {
-                    const newLines = [...prevLines];
-                    const line = newLines[state.lineIndex];
-                    if (line && line.placements) {
-                        const placements = [...line.placements];
-                        placements[state.placementIndex] = { ...placements[state.placementIndex], i: state.currentI };
-                        newLines[state.lineIndex] = { ...line, placements };
-                        setTimeout(() => onChange(parsedLinesToChordPro(newLines)), 0);
-                    }
-                    return newLines;
-                });
-            } else if (deltaX < 5) {
-                // It was a click, not a drag
-                editChord(state.lineIndex, state.placementIndex);
-            }
-        };
-
-        window.addEventListener('pointermove', handleGlobalMove, { passive: false });
-        window.addEventListener('pointerup', handleGlobalUp);
-        window.addEventListener('pointercancel', handleGlobalUp);
-        
-        return () => {
-            window.removeEventListener('pointermove', handleGlobalMove);
-            window.removeEventListener('pointerup', handleGlobalUp);
-            window.removeEventListener('pointercancel', handleGlobalUp);
-        };
+        // Dragging removed for proportional font support
     }, [lines, onChange, fontScale]);
-
-    const handlePointerDown = (e: React.PointerEvent, lineIndex: number, placementIndex: number, initialI: number) => {
-        if (e.button !== 0 && e.pointerType === 'mouse') return;
-        e.stopPropagation();
-        e.preventDefault();
-        
-        const state = {
-            lineIndex,
-            placementIndex,
-            startX: e.clientX,
-            initialI,
-            currentI: initialI
-        };
-        dragStateRef.current = state;
-        setDraggingChord(state);
-    };
 
     return (
         <div className="flex flex-col border-2 border-black dark:border-white rounded-lg bg-white dark:bg-black overflow-hidden h-full">
@@ -282,7 +199,7 @@ export default function VisualChordEditor({
             </div>
 
             <div 
-                className="flex flex-col gap-4 font-mono p-3 overflow-auto flex-1"
+                className="flex flex-col gap-4 p-3 overflow-auto flex-1"
                 style={{ fontSize: `${28 * fontScale}px` }}
             >
             {lines.map((line, lineIndex) => {
@@ -312,95 +229,83 @@ export default function VisualChordEditor({
                     </div>
                 ) : null;
 
-                if (chars.length === 0) {
+                if (chars.length === 0 && (!placements || placements.length === 0)) {
                     return (
-                        <div key={lineIndex} className="min-h-[1.5em] group flex items-center">
-                            <input 
-                                value=""
-                                onChange={(e) => handleTextChange(lineIndex, e.target.value)}
-                                className="w-full bg-transparent outline-none opacity-50 focus:opacity-100 placeholder:opacity-30"
-                                placeholder="(пустий рядок)"
-                            />
+                        <div key={lineIndex} className="flex flex-col w-full">
+                            {blockHeader}
+                            <div className="min-h-[1.5em] group flex items-center">
+                                <input 
+                                    value=""
+                                    onChange={(e) => handleTextChange(lineIndex, e.target.value)}
+                                    className="w-full bg-transparent outline-none opacity-50 focus:opacity-100 placeholder:opacity-30"
+                                    placeholder="(пустий рядок)"
+                                />
+                            </div>
                         </div>
                     );
                 }
 
+                const sortedPlacements = [...placements].sort((a, b) => a.i - b.i);
+                const segments: { chord: string; text: string; startIndex: number; pIdx: number }[] = [];
+                
+                if (sortedPlacements.length > 0) {
+                    if (sortedPlacements[0].i > 0) {
+                        segments.push({ chord: '', text: line.text.slice(0, sortedPlacements[0].i), startIndex: 0, pIdx: -1 });
+                    }
+                    for (let j = 0; j < sortedPlacements.length; j++) {
+                        const p = sortedPlacements[j];
+                        const nextP = sortedPlacements[j + 1];
+                        const textSlice = line.text.slice(p.i, nextP ? nextP.i : undefined);
+                        const originalPIdx = placements.indexOf(p);
+                        segments.push({ chord: p.c, text: textSlice, startIndex: p.i, pIdx: originalPIdx });
+                    }
+                } else {
+                    segments.push({ chord: '', text: line.text, startIndex: 0, pIdx: -1 });
+                }
+
                 return (
-                    <div key={lineIndex} className="flex flex-col w-full">
+                    <div key={lineIndex} className="flex flex-col w-full border-b border-black/5 dark:border-white/5 pb-2">
                         {blockHeader}
-                        <div className="relative pt-6 mb-2 flex group mx-auto w-fit">
-                            <div className="absolute top-0 left-0 right-0 flex pointer-events-none">
-                            {placements.map((p, pIdx) => {
-                                const isDraggingThis = draggingChord?.lineIndex === lineIndex && draggingChord?.placementIndex === pIdx;
-                                const displayI = isDraggingThis ? draggingChord.currentI : p.i;
-                                
-                                return (
-                                    <div 
-                                        key={pIdx} 
-                                        className={`absolute flex items-center gap-1 -translate-x-1/2 ${isDraggingThis ? 'z-50 pointer-events-none' : 'pointer-events-auto transition-all duration-75'}`}
-                                        style={{ left: `calc(${displayI}ch + 0.5ch)` }}
-                                    >
-                                        <button 
-                                            onClick={() => moveChord(lineIndex, pIdx, -1)}
-                                            className={`w-4 h-4 flex items-center justify-center bg-black/10 dark:bg-white/10 rounded-full text-[10px] hover:bg-black/20 ${isDraggingThis ? 'opacity-0' : 'opacity-100'}`}
-                                        >&lt;</button>
-                                        
-                                        <div className="relative">
-                                            {/* Visual grab indicator that pops up when dragging */}
-                                            {isDraggingThis && (
-                                                <div className="absolute -inset-2 -top-6 bg-blue-500 rounded-lg shadow-xl opacity-90 scale-150 flex items-center justify-center pointer-events-none">
-                                                    <span className="font-black text-white text-xs">{p.c}</span>
-                                                </div>
-                                            )}
-                                            
-                                            <button 
-                                                onPointerDown={(e) => handlePointerDown(e, lineIndex, pIdx, p.i)}
-                                                className={`font-black cursor-pointer touch-none select-none relative z-10 ${
-                                                    isDraggingThis 
-                                                        ? 'text-transparent' // Hide original text while grabbing indicator shows
-                                                        : 'text-blue-700 dark:text-blue-400 hover:underline'
-                                                }`}
-                                                style={{ fontSize: `${18 * fontScale}px` }}
+                        <div className="flex flex-wrap items-end justify-center w-full min-h-[2em] pt-4 mb-2 group">
+                            {segments.map((seg, idx) => (
+                                <span key={idx} className="inline-flex flex-col items-start mx-[1px] max-w-full">
+                                    <span className="font-black leading-tight text-blue-700 dark:text-blue-400 whitespace-pre flex items-center group/chord" style={{ fontSize: `${18 * fontScale}px`, minHeight: '1.2em' }}>
+                                        {seg.chord && (
+                                            <>
+                                                <button onClick={() => moveChord(lineIndex, seg.pIdx, -1)} className="opacity-0 group-hover/chord:opacity-100 px-1 hover:bg-black/10 rounded transition">&lt;</button>
+                                                <span onClick={() => editChord(lineIndex, seg.pIdx)} className="cursor-pointer hover:underline text-center min-w-[1ch]">{seg.chord}</span>
+                                                <button onClick={() => moveChord(lineIndex, seg.pIdx, 1)} className="opacity-0 group-hover/chord:opacity-100 px-1 hover:bg-black/10 rounded transition">&gt;</button>
+                                            </>
+                                        )}
+                                    </span>
+                                    <span className="font-black leading-tight text-black dark:text-white whitespace-pre-wrap break-words max-w-full" style={{ fontSize: `${28 * fontScale}px`, minHeight: '1.2em' }}>
+                                        {seg.text.split('').map((char, charOffset) => (
+                                            <span 
+                                                key={charOffset}
+                                                onClick={() => addChord(lineIndex, seg.startIndex + charOffset)}
+                                                className="cursor-pointer hover:bg-black/10 dark:hover:bg-white/20"
                                             >
-                                                {p.c}
-                                            </button>
-                                        </div>
-
-                                        <button 
-                                            onClick={() => moveChord(lineIndex, pIdx, 1)}
-                                            className={`w-4 h-4 flex items-center justify-center bg-black/10 dark:bg-white/10 rounded-full text-[10px] hover:bg-black/20 ${isDraggingThis ? 'opacity-0' : 'opacity-100'}`}
-                                        >&gt;</button>
-                                    </div>
-                                );
-                            })}
-                        </div>
-
-                        <div className="flex whitespace-pre">
-                            {chars.map((char, charIndex) => (
-                                <span 
-                                    key={charIndex}
-                                    onClick={() => addChord(lineIndex, charIndex)}
-                                    className="cursor-pointer hover:bg-black/10 dark:hover:bg-white/20"
-                                    title={`Додати акорд перед "${char}"`}
-                                    style={{ width: '1ch', display: 'inline-block', textAlign: 'center' }}
-                                >
-                                    {char}
+                                                {char}
+                                            </span>
+                                        ))}
+                                        {idx === segments.length - 1 && (
+                                            <span 
+                                                onClick={() => addChord(lineIndex, seg.startIndex + seg.text.length)}
+                                                className="cursor-pointer hover:bg-black/10 dark:hover:bg-white/20 inline-block"
+                                                style={{ minWidth: '0.5em' }}
+                                            >
+                                                {' '}
+                                            </span>
+                                        )}
+                                    </span>
                                 </span>
                             ))}
-                            <span 
-                                onClick={() => addChord(lineIndex, chars.length)}
-                                className="cursor-pointer hover:bg-black/10 dark:hover:bg-white/20 whitespace-pre inline-block"
-                                style={{ width: '1ch' }}
-                            >
-                                {' '}
-                            </span>
-                        </div>
                         </div>
                         <div className="w-full mt-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                             <input 
                                 value={line.text}
                                 onChange={(e) => handleTextChange(lineIndex, e.target.value)}
-                                className="w-full text-xs bg-black/5 dark:bg-white/10 px-2 py-1 rounded outline-none"
+                                className="w-full text-xs font-mono bg-black/5 dark:bg-white/10 px-2 py-1 rounded outline-none"
                                 placeholder="Редагувати рядок тексту..."
                             />
                         </div>

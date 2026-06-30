@@ -126,13 +126,13 @@ function LineBlock({ line, transposeDelta, fontScale, showChords }: { line: Line
                 style={{ minHeight: '2em' }}
             >
                 {segments.map((seg, idx) => (
-                    <span key={idx} className="inline-flex flex-col items-start mx-[1px]">
+                    <span key={idx} className="inline-flex flex-col items-start mx-[1px] max-w-full">
                         {showChords && (
                             <span className="font-black leading-tight text-blue-700 dark:text-blue-400 whitespace-pre" style={{ fontSize: `${18 * fontScale}px`, minHeight: '1.2em' }}>
                                 {seg.chord ? transposeLineChords(seg.chord, transposeDelta) : ''}
                             </span>
                         )}
-                        <span className="font-black leading-tight text-black dark:text-white whitespace-pre" style={{ fontSize: `${28 * fontScale}px`, minHeight: '1.2em' }}>
+                        <span className="font-black leading-tight text-black dark:text-white whitespace-pre-wrap break-words max-w-full" style={{ fontSize: `${28 * fontScale}px`, minHeight: '1.2em' }}>
                             {seg.text}
                         </span>
                     </span>

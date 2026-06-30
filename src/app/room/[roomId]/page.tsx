@@ -273,6 +273,21 @@ export default function RoomPage() {
     }
 
     const [showTransposeMenu, setShowTransposeMenu] = useState(false);
+    const transposeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    function resetTransposeTimeout() {
+        if (transposeTimeoutRef.current) clearTimeout(transposeTimeoutRef.current);
+        transposeTimeoutRef.current = setTimeout(() => {
+            setShowTransposeMenu(false);
+        }, 5000);
+    }
+
+    useEffect(() => {
+        return () => {
+            if (transposeTimeoutRef.current) clearTimeout(transposeTimeoutRef.current);
+        };
+    }, []);
+
     const [showChords, setShowChords] = useState(true);
 
     type Action = 'down' | 'up' | 'pageDown' | 'pageUp' | 'space';
@@ -634,6 +649,8 @@ export default function RoomPage() {
                 timestamp: Date.now(),
             });
         }
+
+        resetTransposeTimeout();
     }
 
     async function openSongModal() {
@@ -725,54 +742,6 @@ export default function RoomPage() {
         socket,
     ]);
 
-    // Swipe on mobile (leader only)
-    useEffect(() => {
-        const el = scrollRef.current;
-        if (!el) return;
-
-        let startY = 0;
-        let startX = 0;
-        let started = false;
-
-        const onTouchStart = (ev: TouchEvent) => {
-            if (!isLeader) return;
-            if (ev.touches.length !== 1) return;
-            started = true;
-            startY = ev.touches[0].clientY;
-            startX = ev.touches[0].clientX;
-        };
-
-        const onTouchEnd = (ev: TouchEvent) => {
-            if (!isLeader) return;
-            if (!started) return;
-            started = false;
-
-            const t = ev.changedTouches[0];
-            const dx = Math.abs(t.clientX - startX);
-            const dy = t.clientY - startY;
-
-            if (dx > 40) return; // ignore horizontal
-
-            if (dy < -120) {
-                // swipe up => down lines
-                applyScrollByLines(8);
-            } else if (dy < -40) {
-                applyScrollByLines(1);
-            } else if (dy > 120) {
-                applyScrollByLines(-8);
-            } else if (dy > 40) {
-                applyScrollByLines(-1);
-            }
-        };
-
-        el.addEventListener('touchstart', onTouchStart, { passive: true });
-        el.addEventListener('touchend', onTouchEnd);
-
-        return () => {
-            el.removeEventListener('touchstart', onTouchStart);
-            el.removeEventListener('touchend', onTouchEnd);
-        };
-    }, [isLeader, lines.length]);
 
     async function toggleFullscreen() {
         try {
@@ -789,8 +758,8 @@ export default function RoomPage() {
     }
 
     return (
-        <main className="min-h-screen bg-white text-black dark:bg-black dark:text-white">
-            <div className="mx-auto max-w-3xl px-3 py-3">
+        <main className="flex h-[100dvh] flex-col overflow-hidden bg-white text-black dark:bg-black dark:text-white">
+            <div className="mx-auto flex h-full w-full max-w-3xl flex-col px-3 pt-3 pb-0">
                 <header className="mb-2 flex items-start justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-3">
                         <a
@@ -837,7 +806,15 @@ export default function RoomPage() {
                             <div className="relative shrink-0">
                                 <button
                                     type="button"
-                                    onClick={() => setShowTransposeMenu(!showTransposeMenu)}
+                                    onClick={() => {
+                                        if (showTransposeMenu) {
+                                            setShowTransposeMenu(false);
+                                            if (transposeTimeoutRef.current) clearTimeout(transposeTimeoutRef.current);
+                                        } else {
+                                            setShowTransposeMenu(true);
+                                            resetTransposeTimeout();
+                                        }
+                                    }}
                                     className={`flex h-10 px-3 shrink-0 items-center justify-center rounded-lg border-2 transition active:translate-x-[1px] active:translate-y-[1px] font-black text-sm ${
                                         showTransposeMenu ? 'border-blue-500 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : 'border-black bg-white dark:border-white dark:bg-black'
                                     }`}
@@ -986,33 +963,7 @@ export default function RoomPage() {
                 </header>
 
 
-                {showQr && (
-                    <section className="mb-2 rounded border-2 border-black bg-white p-2 text-xs dark:border-white dark:bg-black">
-                        {qrLoading ?
-                            <div className="opacity-80">Генерація QR...</div>
-                        :   null}
 
-                        {!qrLoading && qrDataUrl ?
-                            <div className="flex items-start gap-3">
-                                <img
-                                    src={qrDataUrl}
-                                    alt="QR code"
-                                    className="h-[160px] w-[160px] border-2 border-black bg-white dark:border-white"
-                                />
-
-                                <div className="min-w-0">
-                                    <div className="mb-1 font-black">Сайт:</div>
-                                    <div className="break-all opacity-80">
-                                        {qrUrl || ''}
-                                    </div>
-                                    <div className="mt-2 opacity-80">
-                                        Інші сканують QR на телефоні.
-                                    </div>
-                                </div>
-                            </div>
-                        :   null}
-                    </section>
-                )}
 
                 <section className="mb-2">
                     <div className="flex flex-col gap-1">
@@ -1056,7 +1007,7 @@ export default function RoomPage() {
                     </div>
                 </section>
 
-                <section className="rounded border-2 border-black bg-white dark:border-white dark:bg-black flex flex-col">
+                <section className="flex flex-1 flex-col overflow-hidden rounded border-2 border-black bg-white dark:border-white dark:bg-black mb-2">
                     <div className="flex items-center justify-between border-b-2 border-black/10 px-4 py-2 dark:border-white/10 shrink-0">
                         <button 
                             className="flex h-10 w-10 items-center justify-center rounded-lg border-2 border-black/20 bg-black/5 text-xl font-black transition active:bg-black/20 dark:border-white/20 dark:bg-white/10 dark:active:bg-white/20"
@@ -1077,7 +1028,7 @@ export default function RoomPage() {
                     <div
                         ref={scrollRef}
                         onScroll={onNativeScroll}
-                        className="h-[calc(100dvh-260px)] overflow-y-auto overscroll-contain"
+                        className="flex-1 overflow-y-auto overscroll-contain"
                     >
                         <div className="flex flex-col">
                             {lines.length === 0 ?
@@ -1093,7 +1044,7 @@ export default function RoomPage() {
                     </div>
                 </section>
 
-                <div className="pb-6"></div>
+
 
                 {isSongModalOpen && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
@@ -1146,6 +1097,40 @@ export default function RoomPage() {
                                     )}
                                 </div>
                             )}
+                        </div>
+                    </div>
+                )}
+
+                {showQr && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+                        <div className="w-full max-w-sm rounded-xl border-2 border-black bg-white p-6 shadow-xl flex flex-col dark:border-white dark:bg-black">
+                            <div className="mb-4 flex flex-shrink-0 items-center justify-between">
+                                <h2 className="text-xl font-black text-black dark:text-white">QR Код кімнати</h2>
+                                <button 
+                                    onClick={() => setShowQr(false)}
+                                    className="text-2xl font-black leading-none opacity-50 hover:opacity-100"
+                                >
+                                    ×
+                                </button>
+                            </div>
+
+                            {qrLoading ? (
+                                <div className="py-8 text-center font-bold opacity-70">Генерація QR...</div>
+                            ) : qrDataUrl ? (
+                                <div className="flex flex-col items-center gap-4 text-center">
+                                    <img
+                                        src={qrDataUrl}
+                                        alt="QR code"
+                                        className="h-[240px] w-[240px] border-4 border-black bg-white dark:border-white rounded-xl"
+                                    />
+                                    <div className="font-black text-lg break-all">
+                                        {qrUrl || ''}
+                                    </div>
+                                    <div className="opacity-80 font-bold">
+                                        Відскануйте цей QR-код на своєму телефоні, щоб приєднатися до кімнати.
+                                    </div>
+                                </div>
+                            ) : null}
                         </div>
                     </div>
                 )}

@@ -105,55 +105,44 @@ function scrollTopFromPosition(el: HTMLElement | null, pos: ScrollPosition): num
 
 
 function LineBlock({ line, transposeDelta, fontScale, showChords }: { line: Line; transposeDelta: number, fontScale: number, showChords: boolean }) {
-    if (line.placements && line.placements.length > 0) {
-        const segments: { chord: string; text: string }[] = [];
-        const sorted = [...line.placements].sort((a, b) => a.i - b.i);
-        
+    const placements = line.placements || [];
+    const segments: { chord: string; text: string }[] = [];
+    
+    if (placements.length > 0) {
+        const sorted = [...placements].sort((a, b) => a.i - b.i);
         if (sorted[0].i > 0) {
             segments.push({ chord: '', text: line.text.slice(0, sorted[0].i) });
         }
-        
         for (let j = 0; j < sorted.length; j++) {
             const p = sorted[j];
             const nextP = sorted[j + 1];
             const textSlice = line.text.slice(p.i, nextP ? nextP.i : undefined);
             segments.push({ chord: p.c, text: textSlice });
         }
-
-        return (
-            <div
-                className="border-l-2 border-black/30 dark:border-white/20 px-2 py-2 flex flex-wrap items-end justify-center"
-                style={{ minHeight: '2em' }}
-            >
-                {segments.map((seg, idx) => (
-                    <span key={idx} className="inline-flex flex-col items-start mx-[1px] max-w-full">
-                        {showChords && (
-                            <span className="font-black leading-tight text-blue-700 dark:text-blue-400 whitespace-pre" style={{ fontSize: `${18 * fontScale}px`, minHeight: '1.2em' }}>
-                                {seg.chord ? transposeLineChords(seg.chord, transposeDelta) : ''}
-                            </span>
-                        )}
-                        <span className="font-black leading-tight text-black dark:text-white whitespace-pre-wrap break-words max-w-full" style={{ fontSize: `${28 * fontScale}px`, minHeight: '1.2em' }}>
-                            {seg.text}
-                        </span>
-                    </span>
-                ))}
-            </div>
-        );
+    } else {
+        segments.push({ chord: line.chords?.trim() || '', text: line.text });
     }
 
     return (
         <div
-            className="border-l-2 border-black/30 dark:border-white/20 px-2 py-2"
+            className="border-l-2 border-black/30 dark:border-white/20 px-2 py-2 flex flex-wrap items-end justify-center"
             style={{ minHeight: '2em' }}
         >
-            {showChords && (
-                <div className="text-center font-black leading-tight text-blue-700 dark:text-blue-400 whitespace-pre-wrap" style={{ fontSize: `${18 * fontScale}px`, minHeight: '1.2em' }}>
-                    {line.chords?.trim() ? transposeLineChords(line.chords, transposeDelta) : ''}
-                </div>
-            )}
-            <div className="text-center font-black leading-tight text-black dark:text-white whitespace-pre-wrap" style={{ fontSize: `${28 * fontScale}px`, minHeight: '1.2em' }}>
-                {line.text}
-            </div>
+            {segments.map((seg, idx) => (
+                <span key={idx} className="inline-flex flex-col items-start mx-[1px] max-w-full">
+                    {showChords && (
+                        <span className="font-black leading-tight text-blue-700 dark:text-blue-400 whitespace-pre flex items-center" style={{ fontSize: `${18 * fontScale}px`, minHeight: '1.2em' }}>
+                            <span className="text-center min-w-[1ch]">{seg.chord ? transposeLineChords(seg.chord, transposeDelta) : ''}</span>
+                        </span>
+                    )}
+                    <span className="font-black leading-tight text-black dark:text-white whitespace-pre-wrap break-words max-w-full" style={{ fontSize: `${28 * fontScale}px`, minHeight: '1.2em' }}>
+                        {seg.text}
+                        {idx === segments.length - 1 && (
+                            <span className="inline-block pointer-events-none" style={{ minWidth: '0.5em' }}>{' '}</span>
+                        )}
+                    </span>
+                </span>
+            ))}
         </div>
     );
 }

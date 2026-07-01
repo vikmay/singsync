@@ -199,7 +199,7 @@ export default function VisualChordEditor({
             </div>
 
             <div 
-                className="flex flex-col gap-4 p-3 overflow-auto flex-1"
+                className="flex flex-col gap-4 py-3 pl-[10px] pr-2 overflow-auto flex-1"
                 style={{ fontSize: `${28 * fontScale}px` }}
             >
             {lines.map((line, lineIndex) => {

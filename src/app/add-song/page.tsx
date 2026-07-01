@@ -206,7 +206,7 @@ export default function AddSongPage() {
                             onClick={() => setIsVisualMode(!isVisualMode)}
                             className="text-xs font-bold underline text-blue-600 dark:text-blue-400"
                         >
-                            Перемкнути на {isVisualMode ? 'Текстовий режим' : 'Візуальний редактор'}
+                            Перемкнути на {isVisualMode ? 'Редактор тексту' : 'Редактор акордів'}
                         </button>
                     </div>
                     
@@ -221,7 +221,7 @@ export default function AddSongPage() {
                             <textarea
                                 value={rawLines}
                                 onChange={(e) => setRawLines(e.target.value)}
-                                className="h-full w-full resize-none rounded border-2 border-black bg-white px-3 py-2 text-black outline-none font-mono whitespace-pre overflow-auto dark:border-white dark:bg-black dark:text-white"
+                                className="h-full w-full resize-none rounded border-2 border-black bg-white py-3 pl-[10px] pr-2 text-black outline-none font-black leading-tight whitespace-pre-wrap break-words overflow-auto dark:border-white dark:bg-black dark:text-white"
                                 placeholder={`Am\nHello darkness\nF\nmy old friend\n`}
                                 style={{ fontSize: `${28 * defaultFontScale}px` }}
                             />

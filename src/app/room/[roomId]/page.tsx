@@ -448,6 +448,38 @@ export default function RoomPage() {
         };
     }, [roomId]);
 
+    // Fetch songs for modal when open
+    useEffect(() => {
+        if (!isSongModalOpen) return;
+
+        let cancelled = false;
+        
+        async function loadSongs() {
+            setLoadingSongs(true);
+            try {
+                const qs = songSearchQuery.trim() ? `?q=${encodeURIComponent(songSearchQuery.trim())}` : '';
+                const res = await fetch(`/api/songs${qs}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (!cancelled) setAvailableSongs(data.songs || []);
+                }
+            } catch (e) {
+                // ignore
+            } finally {
+                if (!cancelled) setLoadingSongs(false);
+            }
+        }
+
+        const timer = setTimeout(() => {
+            loadSongs();
+        }, 300);
+
+        return () => {
+            cancelled = true;
+            clearTimeout(timer);
+        };
+    }, [isSongModalOpen, songSearchQuery]);
+
     // Fetch song when songId changes
     useEffect(() => {
         let cancelled = false;
@@ -651,19 +683,6 @@ export default function RoomPage() {
     async function openSongModal() {
         setIsSongModalOpen(true);
         setSongSearchQuery('');
-        if (availableSongs.length > 0) return;
-        setLoadingSongs(true);
-        try {
-            const res = await fetch('/api/songs');
-            if (res.ok) {
-                const data = await res.json();
-                setAvailableSongs(data.songs || []);
-            }
-        } catch (e) {
-            // ignore
-        } finally {
-            setLoadingSongs(false);
-        }
     }
 
     function selectSong(newSongId: number) {
@@ -1066,16 +1085,10 @@ export default function RoomPage() {
                                 <div className="py-8 text-center font-bold opacity-70">Завантаження...</div>
                             ) : (
                                 <div className="overflow-y-auto pr-2">
-                                    {availableSongs.filter(s => 
-                                        s.title.toLowerCase().includes(songSearchQuery.toLowerCase()) || 
-                                        s.artist.toLowerCase().includes(songSearchQuery.toLowerCase())
-                                    ).length === 0 ? (
+                                    {availableSongs.length === 0 ? (
                                         <div className="text-center opacity-70">Пісень не знайдено.</div>
                                     ) : (
-                                        availableSongs.filter(s => 
-                                            s.title.toLowerCase().includes(songSearchQuery.toLowerCase()) || 
-                                            s.artist.toLowerCase().includes(songSearchQuery.toLowerCase())
-                                        ).map(song => (
+                                        availableSongs.map(song => (
                                             <button
                                                 key={song.id}
                                                 onClick={() => selectSong(song.id)}

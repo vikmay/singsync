@@ -8,6 +8,7 @@ function openDb(dbPath) {
     db = new Database(normalized);
     // SQLite synchronous + WAL for better realtime behavior
     db.pragma("journal_mode = WAL");
+    db.function("ua_lower", (s) => (s ? String(s).toLowerCase() : ""));
     return db;
 }
 
@@ -100,17 +101,30 @@ function listSongs({ query } = {}) {
             .all();
     }
 
+    const terms = q.split(/\s+/).filter(Boolean);
+    
+    const conditions = [];
+    const params = {};
+    
+    terms.forEach((term, index) => {
+        const paramKey = `q${index}`;
+        conditions.push(`(ua_lower(title) LIKE @${paramKey} OR ua_lower(artist) LIKE @${paramKey} OR ua_lower(content) LIKE @${paramKey})`);
+        params[paramKey] = `%${term.toLowerCase()}%`;
+    });
+
+    const whereClause = conditions.join(" AND ");
+
     return db
         .prepare(
             `
       SELECT id, title, artist, created_at
       FROM songs
-      WHERE title LIKE @q OR artist LIKE @q
+      WHERE ${whereClause}
       ORDER BY created_at DESC
       LIMIT 200
     `
         )
-        .all({ q: `%${q}%` });
+        .all(params);
 }
 
 function getSongById(id) {

@@ -47,3 +47,28 @@ export function transposeLineChords(chordsStr: string, delta: number): string {
         return transposeChord(token, delta);
     });
 }
+
+import { parseRawSong, parsedLinesToText } from './chordParser';
+
+export function transposeRawSong(rawText: string, delta: number): string {
+    const lines = parseRawSong(rawText);
+    const newLines = lines.map(line => {
+        if (line.placements) {
+            return {
+                ...line,
+                placements: line.placements.map(p => ({
+                    ...p,
+                    c: transposeChord(p.c, delta)
+                }))
+            };
+        }
+        if (!line.text && line.chords) {
+            return {
+                ...line,
+                chords: transposeLineChords(line.chords, delta)
+            };
+        }
+        return line;
+    });
+    return parsedLinesToText(newLines);
+}

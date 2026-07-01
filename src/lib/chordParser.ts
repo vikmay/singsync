@@ -115,3 +115,47 @@ export function parseRawSong(rawText: string): ParsedLine[] {
 
     return result;
 }
+
+export function parsedLinesToText(lines: ParsedLine[]): string {
+    return lines.map(line => {
+        if (!line.text && line.chords) {
+            if (!line.placements || line.placements.length === 0) {
+                return line.chords;
+            }
+            let chordLine = '';
+            let currentPos = 0;
+            const sorted = [...line.placements].sort((a, b) => a.i - b.i);
+            for (const p of sorted) {
+                if (p.i > currentPos) {
+                    chordLine += ' '.repeat(p.i - currentPos);
+                    currentPos = p.i;
+                } else if (currentPos > 0) {
+                    chordLine += ' ';
+                    currentPos++;
+                }
+                chordLine += p.c;
+                currentPos += p.c.length;
+            }
+            return chordLine;
+        }
+        if (!line.placements || line.placements.length === 0) {
+            return line.text;
+        }
+        
+        let chordLine = '';
+        let currentPos = 0;
+        const sorted = [...line.placements].sort((a, b) => a.i - b.i);
+        for (const p of sorted) {
+            if (p.i > currentPos) {
+                chordLine += ' '.repeat(p.i - currentPos);
+                currentPos = p.i;
+            } else if (currentPos > 0) {
+                chordLine += ' ';
+                currentPos++;
+            }
+            chordLine += p.c;
+            currentPos += p.c.length;
+        }
+        return chordLine + '\n' + line.text;
+    }).join('\n');
+}

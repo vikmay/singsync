@@ -1,40 +1,18 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { ParsedLine, parseRawSong, ChordPlacement } from '@/lib/chordParser';
+import { ParsedLine, parseRawSong, ChordPlacement, parsedLinesToText } from '@/lib/chordParser';
 import { transposeChord, transposeLineChords } from '@/lib/transpose';
-
-function parsedLinesToChordPro(lines: ParsedLine[]): string {
-    return lines.map(line => {
-        if (!line.text && line.chords) {
-            if (!line.placements || line.placements.length === 0) {
-                return line.chords;
-            }
-        }
-        if (!line.placements || line.placements.length === 0) {
-            return line.text;
-        }
-        
-        let out = '';
-        let lastI = 0;
-        const sorted = [...line.placements].sort((a, b) => a.i - b.i);
-        for (const p of sorted) {
-            out += line.text.slice(lastI, p.i);
-            out += `[${p.c}]`;
-            lastI = p.i;
-        }
-        out += line.text.slice(lastI);
-        return out;
-    }).join('\n');
-}
 
 export default function VisualChordEditor({
     rawLines,
     fontScale = 1.0,
+    showChords = true,
     onChange
 }: {
     rawLines: string;
     fontScale?: number;
+    showChords?: boolean;
     onChange: (val: string) => void;
 }) {
     const [lines, setLines] = useState<ParsedLine[]>([]);
@@ -47,7 +25,7 @@ export default function VisualChordEditor({
     const handleTextChange = (lineIndex: number, newText: string) => {
         const newLines = [...lines];
         newLines[lineIndex] = { ...newLines[lineIndex], text: newText };
-        onChange(parsedLinesToChordPro(newLines));
+        onChange(parsedLinesToText(newLines));
     };
 
     const addChord = (lineIndex: number, charIndex: number) => {
@@ -66,7 +44,7 @@ export default function VisualChordEditor({
         const newLines = [...lines];
         const newPlacements = [...placements, { i: charIndex, c: chord }];
         newLines[lineIndex] = { ...line, placements: newPlacements };
-        onChange(parsedLinesToChordPro(newLines));
+        onChange(parsedLinesToText(newLines));
     };
 
     const moveChord = (lineIndex: number, placementIndex: number, delta: number) => {
@@ -81,7 +59,7 @@ export default function VisualChordEditor({
         placements[placementIndex] = { ...p, i: newI };
         
         newLines[lineIndex] = { ...line, placements };
-        onChange(parsedLinesToChordPro(newLines));
+        onChange(parsedLinesToText(newLines));
     };
 
     const editChord = (lineIndex: number, placementIndex: number) => {
@@ -102,7 +80,7 @@ export default function VisualChordEditor({
         }
         
         newLines[lineIndex] = { ...line, placements };
-        onChange(parsedLinesToChordPro(newLines));
+        onChange(parsedLinesToText(newLines));
     };
 
     type BlockInfo = { startIdx: number; endIdx: number; lines: ParsedLine[] };
@@ -144,30 +122,7 @@ export default function VisualChordEditor({
             newLines[lineIdx] = { ...line, placements: placementsToPaste };
         }
         setLines(newLines);
-        onChange(parsedLinesToChordPro(newLines));
-    };
-
-    const applyTranspose = (delta: number) => {
-        const newLines = lines.map(line => {
-            if (line.placements) {
-                return {
-                    ...line,
-                    placements: line.placements.map(p => ({
-                        ...p,
-                        c: transposeChord(p.c, delta)
-                    }))
-                };
-            }
-            if (!line.text && line.chords) {
-                return {
-                    ...line,
-                    chords: transposeLineChords(line.chords, delta)
-                };
-            }
-            return line;
-        });
-        setLines(newLines);
-        onChange(parsedLinesToChordPro(newLines));
+        onChange(parsedLinesToText(newLines));
     };
 
     useEffect(() => {
@@ -181,21 +136,6 @@ export default function VisualChordEditor({
                     Клікайте на будь-яку букву в тексті, щоб додати акорд.<br/>
                     Використовуйте &lt; та &gt; біля акорду для пересування.
                 </p>
-                <div className="flex items-center gap-2 shrink-0">
-                    <span className="font-bold uppercase tracking-wider opacity-60" style={{ fontSize: '0.75rem', lineHeight: '1rem' }}>Тональність:</span>
-                    <button 
-                        onClick={() => applyTranspose(-1)}
-                        className="px-3 py-1 bg-black/5 dark:bg-white/10 hover:bg-black/10 hover:dark:bg-white/20 rounded font-black text-sm transition"
-                    >
-                        -1
-                    </button>
-                    <button 
-                        onClick={() => applyTranspose(1)}
-                        className="px-3 py-1 bg-black/5 dark:bg-white/10 hover:bg-black/10 hover:dark:bg-white/20 rounded font-black text-sm transition"
-                    >
-                        +1
-                    </button>
-                </div>
             </div>
 
             <div 
@@ -269,15 +209,17 @@ export default function VisualChordEditor({
                         <div className="flex flex-wrap items-end justify-center w-full min-h-[2em] pt-4 mb-2 group">
                             {segments.map((seg, idx) => (
                                 <span key={idx} className="inline-flex flex-col items-start mx-[1px] max-w-full">
-                                    <span className="font-black leading-tight text-blue-700 dark:text-blue-400 whitespace-pre flex items-center group/chord" style={{ fontSize: `${18 * fontScale}px`, minHeight: '1.2em' }}>
-                                        {seg.chord && (
-                                            <>
-                                                <button onClick={() => moveChord(lineIndex, seg.pIdx, -1)} className="opacity-0 group-hover/chord:opacity-100 px-1 hover:bg-black/10 rounded transition">&lt;</button>
-                                                <span onClick={() => editChord(lineIndex, seg.pIdx)} className="cursor-pointer hover:underline text-center min-w-[1ch]">{seg.chord}</span>
-                                                <button onClick={() => moveChord(lineIndex, seg.pIdx, 1)} className="opacity-0 group-hover/chord:opacity-100 px-1 hover:bg-black/10 rounded transition">&gt;</button>
-                                            </>
-                                        )}
-                                    </span>
+                                    {showChords && (
+                                        <span className="font-black leading-tight text-blue-700 dark:text-blue-400 whitespace-pre flex items-center group/chord" style={{ fontSize: `${18 * fontScale}px`, minHeight: '1.2em' }}>
+                                            {seg.chord && (
+                                                <>
+                                                    <button onClick={() => moveChord(lineIndex, seg.pIdx, -1)} className="opacity-0 group-hover/chord:opacity-100 px-1 hover:bg-black/10 rounded transition">&lt;</button>
+                                                    <span onClick={() => editChord(lineIndex, seg.pIdx)} className="cursor-pointer hover:underline text-center min-w-[1ch]">{seg.chord}</span>
+                                                    <button onClick={() => moveChord(lineIndex, seg.pIdx, 1)} className="opacity-0 group-hover/chord:opacity-100 px-1 hover:bg-black/10 rounded transition">&gt;</button>
+                                                </>
+                                            )}
+                                        </span>
+                                    )}
                                     <span className="font-black leading-tight text-black dark:text-white whitespace-pre-wrap break-words max-w-full" style={{ fontSize: `${28 * fontScale}px`, minHeight: '1.2em' }}>
                                         {seg.text.split('').map((char, charOffset) => (
                                             <span 

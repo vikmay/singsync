@@ -206,7 +206,7 @@ export default function AddSongPage() {
                     </div>
                 )}
 
-                <div className={`flex flex-col gap-2 shrink-0 overflow-y-auto max-h-[25vh] transition-opacity ${activeTab !== 'manual' ? 'opacity-50 pointer-events-none' : ''}`}>
+                <div className={`flex flex-col gap-2 shrink-0 overflow-y-auto scrollbar-hide max-h-[25vh] transition-opacity ${activeTab !== 'manual' ? 'opacity-50 pointer-events-none' : ''}`}>
                     <label className="block">
                         <div className="mb-1 text-xs font-bold">Назва</div>
                         <input
@@ -326,7 +326,7 @@ export default function AddSongPage() {
                                 value={showChords ? rawLines : parseRawSong(rawLines).map(l => l.text).filter(t => t !== undefined).join('\n')}
                                 onChange={(e) => showChords ? setRawLines(e.target.value) : handleTextOnlyChange(e.target.value)}
                                 placeholder={showChords ? "Type your song here..." : "Можете редагувати текст (акорди залишаться збереженими)"}
-                                className={`h-full w-full resize-none rounded border-2 border-black bg-white px-2 py-2 text-center text-black outline-none font-sans font-black leading-tight whitespace-pre-wrap break-words overflow-auto dark:border-white dark:bg-black dark:text-white ${!showChords ? 'bg-black/5 dark:bg-white/5' : ''}`}
+                                className={`h-full w-full resize-none rounded border-2 border-black bg-white px-2 py-2 text-center text-black outline-none font-sans font-black leading-tight whitespace-pre-wrap break-words overflow-auto scrollbar-hide dark:border-white dark:bg-black dark:text-white ${!showChords ? 'bg-black/5 dark:bg-white/5' : ''}`}
                                 style={{ fontSize: `${28 * defaultFontScale}px` }}
                             />
                         )}

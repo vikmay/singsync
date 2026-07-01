@@ -270,7 +270,7 @@ export default function VisualChordEditor({
             </div>
 
             <div 
-                className="flex flex-col overflow-auto flex-1 font-sans"
+                className="flex flex-col overflow-auto scrollbar-hide flex-1 font-sans"
                 style={{ fontSize: `${28 * fontScale}px` }}
             >
             {lines.map((line, lineIndex) => {
@@ -335,11 +335,19 @@ export default function VisualChordEditor({
                 }
 
                 return (
-                    <div key={lineIndex} className="flex flex-col w-full border-l-2 border-black/30 dark:border-white/20 px-2 py-2 group">
+                    <div key={lineIndex} className="flex flex-col w-full px-2 py-2 group shadow-[inset_2px_0_0_rgba(0,0,0,0.3)] dark:shadow-[inset_2px_0_0_rgba(255,255,255,0.2)]">
                         {blockHeader}
-                        <div className="flex flex-wrap items-end justify-center w-full min-h-[2em]">
+                        <div 
+                            className="flex flex-wrap items-end justify-center w-full min-h-[2em] cursor-text"
+                            onClick={(e) => {
+                                // Only trigger if clicking the empty space, not the characters
+                                if (e.target === e.currentTarget && showChords) {
+                                    addChord(lineIndex, line.text.length);
+                                }
+                            }}
+                        >
                             {segments.map((seg, idx) => (
-                                <span key={idx} className="inline-flex flex-col items-start mx-[1px] max-w-full">
+                                <span key={idx} className="inline-flex flex-col items-start max-w-full">
                                     {showChords && (
                                         <span className="font-black leading-tight text-blue-700 dark:text-blue-400 whitespace-pre flex items-center justify-center relative group/chord" style={{ fontSize: `${18 * fontScale}px`, minHeight: '1.2em' }}>
                                             {seg.chord && (
@@ -347,7 +355,7 @@ export default function VisualChordEditor({
                                                     <button onClick={() => moveChord(lineIndex, seg.pIdx, -1)} className="absolute right-full opacity-0 group-hover/chord:opacity-100 px-1 hover:bg-black/10 rounded transition">&lt;</button>
                                                     <span 
                                                         onPointerDown={(e) => handlePointerDown(e, lineIndex, seg.pIdx, seg.startIndex, seg.chord)}
-                                                        onClick={() => handleChordClick(lineIndex, seg.pIdx)} 
+                                                        onClick={(e) => { e.stopPropagation(); handleChordClick(lineIndex, seg.pIdx); }} 
                                                         className={`cursor-pointer hover:underline text-center min-w-[1ch] select-none touch-none ${dragging?.lineIndex === lineIndex && dragging?.pIdx === seg.pIdx ? 'opacity-30 bg-blue-100 dark:bg-blue-900 rounded' : ''}`}
                                                     >
                                                         {seg.chord}
@@ -363,23 +371,12 @@ export default function VisualChordEditor({
                                                 key={charOffset}
                                                 data-line={lineIndex}
                                                 data-char={seg.startIndex + charOffset}
-                                                onClick={() => showChords && addChord(lineIndex, seg.startIndex + charOffset)}
+                                                onClick={(e) => { e.stopPropagation(); showChords && addChord(lineIndex, seg.startIndex + charOffset); }}
                                                 className="cursor-pointer hover:bg-black/10 dark:hover:bg-white/20 select-none"
                                             >
                                                 {char}
                                             </span>
                                         ))}
-                                        {idx === segments.length - 1 && (
-                                            <span 
-                                                data-line={lineIndex}
-                                                data-char={seg.startIndex + seg.text.length}
-                                                onClick={() => showChords && addChord(lineIndex, seg.startIndex + seg.text.length)}
-                                                className="inline-block cursor-pointer hover:bg-black/10 dark:hover:bg-white/20 select-none"
-                                                style={{ minWidth: '0.5em' }}
-                                            >
-                                                {' '}
-                                            </span>
-                                        )}
                                     </span>
                                 </span>
                             ))}

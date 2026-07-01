@@ -125,11 +125,11 @@ function LineBlock({ line, transposeDelta, fontScale, showChords }: { line: Line
 
     return (
         <div
-            className="border-l-2 border-black/30 dark:border-white/20 px-2 py-2 flex flex-wrap items-end justify-center"
+            className="px-2 py-2 flex flex-wrap items-end justify-center shadow-[inset_2px_0_0_rgba(0,0,0,0.3)] dark:shadow-[inset_2px_0_0_rgba(255,255,255,0.2)]"
             style={{ minHeight: '2em' }}
         >
             {segments.map((seg, idx) => (
-                <span key={idx} className="inline-flex flex-col items-start mx-[1px] max-w-full">
+                <span key={idx} className="inline-flex flex-col items-start max-w-full">
                     {showChords && (
                         <span className="font-black leading-tight text-blue-700 dark:text-blue-400 whitespace-pre flex items-center" style={{ fontSize: `${18 * fontScale}px`, minHeight: '1.2em' }}>
                             <span className="text-center min-w-[1ch]">{seg.chord ? transposeLineChords(seg.chord, transposeDelta) : ''}</span>
@@ -137,9 +137,6 @@ function LineBlock({ line, transposeDelta, fontScale, showChords }: { line: Line
                     )}
                     <span className="font-black leading-tight text-black dark:text-white whitespace-pre-wrap break-words max-w-full" style={{ fontSize: `${28 * fontScale}px`, minHeight: '1.2em' }}>
                         {seg.text}
-                        {idx === segments.length - 1 && (
-                            <span className="inline-block pointer-events-none" style={{ minWidth: '0.5em' }}>{' '}</span>
-                        )}
                     </span>
                 </span>
             ))}
@@ -1085,7 +1082,7 @@ export default function RoomPage() {
                     <div
                         ref={scrollRef}
                         onScroll={onNativeScroll}
-                        className="flex-1 overflow-y-auto overscroll-contain"
+                        className="flex-1 overflow-y-auto scrollbar-hide overscroll-contain"
                     >
                         <div className="flex flex-col w-full font-sans pb-[50vh] border-2 border-transparent" style={{ fontSize: `${28 * fontScale}px` }}>
                             {lines.length === 0 ?
@@ -1124,14 +1121,14 @@ export default function RoomPage() {
                                 className="mb-4 w-full flex-shrink-0 rounded border-2 border-black p-2 font-bold focus:outline-none focus:ring-2 focus:ring-black/20 dark:border-white dark:bg-black dark:text-white dark:focus:ring-white/20"
                             />
 
-                            {loadingSongs ? (
-                                <div className="py-8 text-center font-bold opacity-70">Завантаження...</div>
-                            ) : (
-                                <div className="overflow-y-auto pr-2">
-                                    {availableSongs.length === 0 ? (
-                                        <div className="text-center opacity-70">Пісень не знайдено.</div>
-                                    ) : (
-                                        availableSongs.map(song => (
+                            <div className="overflow-y-auto pr-2 relative min-h-[100px]">
+                                {loadingSongs && availableSongs.length === 0 ? (
+                                    <div className="py-8 text-center font-bold opacity-70">Завантаження...</div>
+                                ) : availableSongs.length === 0 ? (
+                                    <div className="text-center opacity-70 py-8">Пісень не знайдено.</div>
+                                ) : (
+                                    <>
+                                        {availableSongs.map(song => (
                                             <button
                                                 key={song.id}
                                                 onClick={() => selectSong(song.id)}
@@ -1144,10 +1141,10 @@ export default function RoomPage() {
                                                 <div className="font-black text-lg">{song.title}</div>
                                                 <div className="text-sm font-bold opacity-80">{song.artist}</div>
                                             </button>
-                                        ))
-                                    )}
-                                </div>
-                            )}
+                                        ))}
+                                    </>
+                                )}
+                            </div>
                         </div>
                     </div>
                 )}

@@ -81,9 +81,10 @@ export function parseRawSong(rawText: string): ParsedLine[] {
             // If we already have pending chords but no text, push them as a standalone chord line.
             if (pendingChords) {
                 const placements: ChordPlacement[] = [];
-                const chordMatches = [...pendingChords.matchAll(/\S+/g)];
-                for (const match of chordMatches) {
-                    placements.push({ i: match.index || 0, c: match[0] });
+                let m;
+                const regex = /\S+/g;
+                while ((m = regex.exec(pendingChords)) !== null) {
+                    placements.push({ i: m.index || 0, c: m[0] });
                 }
                 result.push({ chords: pendingChords.trim(), text: '', placements });
             }
@@ -93,9 +94,10 @@ export function parseRawSong(rawText: string): ParsedLine[] {
             let placements: ChordPlacement[] | undefined = undefined;
             if (pendingChords.trim()) {
                 placements = [];
-                const chordMatches = [...pendingChords.matchAll(/\S+/g)];
-                for (const match of chordMatches) {
-                    placements.push({ i: match.index || 0, c: match[0] });
+                let m;
+                const regex = /\S+/g;
+                while ((m = regex.exec(pendingChords)) !== null) {
+                    placements.push({ i: m.index || 0, c: m[0] });
                 }
             }
             result.push({ chords: pendingChords.trim(), text: line.trimEnd(), placements });
@@ -106,9 +108,10 @@ export function parseRawSong(rawText: string): ParsedLine[] {
     // If there's a leftover chord line at the end
     if (pendingChords) {
         const placements: ChordPlacement[] = [];
-        const chordMatches = [...pendingChords.matchAll(/\S+/g)];
-        for (const match of chordMatches) {
-            placements.push({ i: match.index || 0, c: match[0] });
+        let m;
+        const regex = /\S+/g;
+        while ((m = regex.exec(pendingChords)) !== null) {
+            placements.push({ i: m.index || 0, c: m[0] });
         }
         result.push({ chords: pendingChords.trim(), text: '', placements });
     }

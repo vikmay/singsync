@@ -67,7 +67,7 @@ export default function EditSongPage() {
                 
                 // Reconstruct raw text from JSON lines
                 const lines = data.song.parsedContent?.lines || [];
-                const reconstructed = lines.map((l: Line) => {
+                const reconstructed = lines.map((l: { chords: string, text: string }) => {
                     if (l.chords?.trim() && l.text?.trim()) {
                         return `${l.chords}\n${l.text}`;
                     } else if (l.chords?.trim()) {

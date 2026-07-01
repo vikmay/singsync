@@ -71,20 +71,20 @@ function durationFromSpeed(speed: number) {
 }
 
 function positionFromScrollTop(el: HTMLElement | null, top: number): ScrollPosition {
-    if (!el) return { lineIndex: 0, offsetPx: 0 };
+    if (!el) return { lineIndex: 0, offsetPercent: 0 };
     const children = el.firstElementChild?.children;
-    if (!children || children.length === 0) return { lineIndex: 0, offsetPx: 0 };
+    if (!children || children.length === 0) return { lineIndex: 0, offsetPercent: 0 };
 
     let offset = 0;
     for (let i = 0; i < children.length; i++) {
         const child = children[i] as HTMLElement;
         const h = child.offsetHeight;
         if (offset + h > top) {
-            return { lineIndex: i, offsetPx: h > 0 ? (top - offset) / h : 0 };
+            return { lineIndex: i, offsetPercent: h > 0 ? (top - offset) / h : 0 };
         }
         offset += h;
     }
-    return { lineIndex: children.length - 1, offsetPx: 1 };
+    return { lineIndex: children.length - 1, offsetPercent: 1 };
 }
 
 function scrollTopFromPosition(el: HTMLElement | null, pos: ScrollPosition): number {
@@ -98,7 +98,7 @@ function scrollTopFromPosition(el: HTMLElement | null, pos: ScrollPosition): num
     }
     const targetChild = children[pos.lineIndex] as HTMLElement | undefined;
     if (targetChild) {
-        offset += targetChild.offsetHeight * (pos.offsetPx || 0);
+        offset += targetChild.offsetHeight * (pos.offsetPercent || 0);
     }
     return offset;
 }
@@ -183,7 +183,7 @@ export default function RoomPage() {
     const [transposeDelta, setTransposeDelta] = useState(0);
     const [scrollTarget, setScrollTarget] = useState<ScrollPosition>({
         lineIndex: 0,
-        offsetPx: 0,
+        offsetPercent: 0,
     });
 
     const scrollTargetRef = useRef(scrollTarget);
@@ -244,6 +244,10 @@ export default function RoomPage() {
     const [songSearchQuery, setSongSearchQuery] = useState('');
 
     const [isDetached, setIsDetached] = useState(false);
+
+    const [proposal, setProposal] = useState<{songId: number, songTitle: string, artist: string} | null>(null);
+    const isLeaderRef = useRef(isLeader);
+    isLeaderRef.current = isLeader;
 
     const [adminClicks, setAdminClicks] = useState(0);
 
@@ -374,12 +378,23 @@ export default function RoomPage() {
             setScrollTarget(payload.scrollPosition);
         });
 
+        s.on('song_proposed', (payload: {songId: number, songTitle: string, artist: string}) => {
+            if (isLeaderRef.current) {
+                setProposal({
+                    songId: payload.songId,
+                    songTitle: payload.songTitle,
+                    artist: payload.artist,
+                });
+            }
+        });
+
         return () => {
             s.removeAllListeners('leader_change');
             s.removeAllListeners('song_change');
             s.removeAllListeners('speed_change');
             s.removeAllListeners('transpose_change');
             s.removeAllListeners('scroll_update');
+            s.removeAllListeners('song_proposed');
         };
     }, [socket]);
 
@@ -634,7 +649,7 @@ export default function RoomPage() {
 
         const nextPos: ScrollPosition = {
             lineIndex: nextLine,
-            offsetPx: current.offsetPx,
+            offsetPercent: current.offsetPercent,
         };
 
         setScrollTarget(nextPos);
@@ -710,7 +725,7 @@ export default function RoomPage() {
         const pos = positionFromScrollTop(el, el.scrollTop);
         
         // Minor optimization: ignore exact same target
-        if (pos.lineIndex === scrollTarget.lineIndex && pos.offsetPx === scrollTarget.offsetPx) return;
+        if (pos.lineIndex === scrollTarget.lineIndex && pos.offsetPercent === scrollTarget.offsetPercent) return;
 
         setScrollTarget(pos);
         emitScroll(pos, speed);
@@ -1139,6 +1154,37 @@ export default function RoomPage() {
                                     </div>
                                 </div>
                             ) : null}
+                        </div>
+                    </div>
+                )}
+                {proposal && isLeader && (
+                    <div className="fixed top-0 left-0 right-0 z-[60] flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b-4 border-blue-500 bg-blue-100 px-3 py-2 shadow-lg dark:border-blue-400 dark:bg-blue-900">
+                        <div className="flex-1 min-w-0 flex items-center gap-2">
+                            <div className="shrink-0 rounded bg-blue-500 px-2 py-1 text-[10px] sm:text-xs font-black uppercase tracking-wider text-white dark:bg-blue-300 dark:text-blue-900">
+                                Пропозиція
+                            </div>
+                            <div className="min-w-0 flex flex-col sm:flex-row sm:items-baseline sm:gap-2">
+                                <span className="truncate text-base sm:text-xl font-black leading-tight text-black dark:text-white">
+                                    {proposal.songTitle}
+                                </span>
+                                <span className="truncate text-[10px] sm:text-sm font-bold text-black/70 dark:text-white/70">
+                                    {proposal.artist}
+                                </span>
+                            </div>
+                        </div>
+                        <div className="flex shrink-0 gap-2 w-full sm:w-auto">
+                            <button
+                                onClick={() => { selectSong(proposal.songId); setProposal(null); }}
+                                className="flex-1 sm:flex-none rounded-lg border-2 border-blue-700 bg-blue-600 px-4 py-2 text-sm font-black text-white transition active:translate-x-[1px] active:translate-y-[1px] hover:bg-blue-700 dark:border-blue-300 dark:bg-blue-500 dark:hover:bg-blue-600"
+                            >
+                                Увімкнути
+                            </button>
+                            <button
+                                onClick={() => setProposal(null)}
+                                className="flex-1 sm:flex-none rounded-lg border-2 border-blue-700 bg-transparent px-4 py-2 text-sm font-black text-blue-800 transition active:translate-x-[1px] active:translate-y-[1px] hover:bg-blue-200 dark:border-blue-300 dark:text-blue-200 dark:hover:bg-blue-800/50"
+                            >
+                                Сховати
+                            </button>
                         </div>
                     </div>
                 )}

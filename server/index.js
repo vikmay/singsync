@@ -279,6 +279,34 @@ async function main() {
                 }
             });
 
+            // POST /api/room/:roomId/propose
+            app.post("/api/room/:roomId/propose", (req, res) => {
+                try {
+                    const roomId = req.params.roomId;
+                    const { songId, songTitle, artist } = req.body || {};
+
+                    if (!songId || !songTitle) {
+                        return res.status(400).json({ error: "Missing song info" });
+                    }
+
+                    const snapshot = getRoomStateSnapshot(roomId);
+                    if (!snapshot || !snapshot.leaderId) {
+                        return res.status(404).json({ error: "Room not active or no leader" });
+                    }
+
+                    io.to(roomId).emit("song_proposed", {
+                        songId: Number(songId),
+                        songTitle,
+                        artist: artist || "",
+                        timestamp: Date.now(),
+                    });
+
+                    res.json({ ok: true });
+                } catch (e) {
+                    res.status(500).json({ error: "Failed to propose song" });
+                }
+            });
+
             // GET /api/room/:roomId
             app.get("/api/room/:roomId", (req, res) => {
                 const roomId = String(req.params.roomId || "").trim();

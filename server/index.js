@@ -17,6 +17,7 @@ const {
     addSong,
     updateSong,
     deleteSong,
+    deleteRoom,
     listRecentRooms,
 } = require("./sqlite");
 
@@ -27,6 +28,7 @@ const {
     setLeader,
     setSong,
     setProposal,
+    deleteRoomState,
 } = require("./roomState");
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
@@ -345,6 +347,23 @@ async function main() {
                         timestamp: snapshot2.timestamp,
                     },
                 });
+            });
+
+            // DELETE /api/room/:roomId
+            app.delete("/api/room/:roomId", (req, res) => {
+                if (req.headers["x-admin-password"] !== ADMIN_PASSWORD) {
+                    return res.status(401).json({ error: "Unauthorized" });
+                }
+                try {
+                    const roomId = req.params.roomId;
+                    deleteRoom(roomId);
+                    deleteRoomState(roomId);
+                    io.to(roomId).emit("room_deleted");
+                    io.in(roomId).socketsLeave(roomId);
+                    res.json({ ok: true });
+                } catch (e) {
+                    res.status(500).json({ error: "Failed to delete room" });
+                }
             });
 
             // GET /api/qr/:roomId -> { dataUrl }

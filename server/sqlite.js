@@ -197,6 +197,13 @@ function getRoom(roomId) {
         .get({ id });
 }
 
+function deleteRoom(roomId) {
+    const id = safeText(roomId);
+    if (!id) return;
+
+    db.prepare(`DELETE FROM rooms WHERE id = @id`).run({ id });
+}
+
 function listRecentRooms(limit = 10) {
     return db
         .prepare(
@@ -272,5 +279,6 @@ module.exports = {
     deleteSong,
     createRoom,
     getRoom,
+    deleteRoom,
     listRecentRooms,
 };

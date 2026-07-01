@@ -73,6 +73,10 @@ function setProposal(roomId, proposal) {
     return room;
 }
 
+function deleteRoomState(roomId) {
+    rooms.delete(roomId);
+}
+
 module.exports = {
     getRoomStateSnapshot,
     setLeader,
@@ -80,6 +84,7 @@ module.exports = {
     setTransposeDelta,
     updateScroll,
     setProposal,
+    deleteRoomState,
     // exported for debugging/testing
     _rooms: rooms,
 };

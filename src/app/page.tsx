@@ -21,6 +21,90 @@ type ActiveRoom = {
     songArtist: string;
 };
 
+type ActiveRoomItemProps = {
+    room: ActiveRoom;
+    isAdmin: boolean;
+    onDelete: (roomId: string) => void;
+};
+
+function ActiveRoomItem({ room, isAdmin, onDelete }: ActiveRoomItemProps) {
+    const [offset, setOffset] = useState(0);
+    const [startX, setStartX] = useState<number | null>(null);
+
+    function onTouchStart(e: React.TouchEvent) {
+        if (!isAdmin) return;
+        setStartX(e.touches[0].clientX);
+    }
+
+    function onTouchMove(e: React.TouchEvent) {
+        if (!isAdmin || startX === null) return;
+        const currentX = e.touches[0].clientX;
+        const diff = currentX - startX;
+        if (diff < 0) {
+            setOffset(Math.max(-80, diff));
+        } else if (offset < 0) {
+            setOffset(Math.min(0, offset + diff));
+        }
+    }
+
+    function onTouchEnd() {
+        if (!isAdmin) return;
+        setStartX(null);
+        if (offset < -40) {
+            setOffset(-80);
+        } else {
+            setOffset(0);
+        }
+    }
+
+    return (
+        <div className="relative overflow-hidden rounded">
+            <div className="absolute right-0 top-0 bottom-0 flex w-20 items-center justify-center bg-red-500">
+                <button
+                    onClick={() => {
+                        if (confirm(`Ви впевнені, що хочете видалити кімнату ${room.roomId}?`)) {
+                            onDelete(room.roomId);
+                        } else {
+                            setOffset(0);
+                        }
+                    }}
+                    className="h-full w-full text-white font-bold"
+                >
+                    Видалити
+                </button>
+            </div>
+            <div
+                className="relative bg-white dark:bg-black transition-transform"
+                style={{ transform: `translateX(${offset}px)` }}
+                onTouchStart={onTouchStart}
+                onTouchMove={onTouchMove}
+                onTouchEnd={onTouchEnd}
+            >
+                <Link
+                    href={`/room/${room.roomId}`}
+                    className="flex items-center gap-2 rounded border-2 border-green-600 bg-green-50 px-3 py-2 text-sm text-green-900 transition active:translate-x-[1px] active:translate-y-[1px] hover:bg-green-100 dark:border-green-400 dark:bg-green-950 dark:text-green-100 dark:hover:bg-green-900 shadow-[3px_3px_0px_#16a34a] dark:shadow-[3px_3px_0px_#4ade80] flex-1"
+                >
+                    <span className="font-bold text-lg">Кімната №</span>
+                    <span className="text-xl leading-none font-black text-red-600 dark:text-red-400">{room.roomId}</span>
+                </Link>
+            </div>
+            {isAdmin && offset === 0 && (
+                 <button
+                 onClick={() => {
+                     if (confirm(`Ви впевнені, що хочете видалити кімнату ${room.roomId}?`)) {
+                         onDelete(room.roomId);
+                     }
+                 }}
+                 className="absolute right-[-4px] top-[-4px] hidden sm:flex items-center justify-center w-6 h-6 rounded-full bg-red-500 text-white font-bold text-xs opacity-0 hover:opacity-100 transition-opacity z-10"
+                 title="Видалити кімнату"
+             >
+                 ✕
+             </button>
+            )}
+        </div>
+    );
+}
+
 function formatActionLabel(action: string) {
     switch (action) {
         case 'down':
@@ -91,6 +175,13 @@ export default function Home() {
     }, [binding, waitingForKey]);
 
     const trimmedQuery = useMemo(() => query.trim(), [query]);
+
+    function fetchActiveRooms() {
+        fetch(`/api/rooms/active?limit=5`)
+            .then((res) => res.json())
+            .then((data) => setActiveRooms(data.rooms || []))
+            .catch(() => {});
+    }
 
     useEffect(() => {
         let cancelled = false;
@@ -166,6 +257,26 @@ export default function Home() {
             router.push(`/room/${data.roomId}`);
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Unknown error');
+        }
+    }
+
+    async function deleteRoom(roomId: string) {
+        try {
+            const adminPassword = localStorage.getItem('admin_pwd') || '';
+            const res = await fetch(`/api/room/${roomId}`, {
+                method: 'DELETE',
+                headers: {
+                    'x-admin-password': adminPassword,
+                },
+            });
+            if (res.ok) {
+                fetchActiveRooms();
+            } else {
+                const data = await res.json();
+                alert(`Помилка видалення: ${data.error || 'Unknown'}`);
+            }
+        } catch (e) {
+            alert('Помилка з\'єднання');
         }
     }
 
@@ -297,14 +408,12 @@ export default function Home() {
                         </label>
                         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                             {activeRooms.map((room) => (
-                                <Link
+                                <ActiveRoomItem
                                     key={room.roomId}
-                                    href={`/room/${room.roomId}`}
-                                    className="flex items-center gap-2 rounded border-2 border-green-600 bg-green-50 px-3 py-2 text-sm text-green-900 transition active:translate-x-[1px] active:translate-y-[1px] hover:bg-green-100 dark:border-green-400 dark:bg-green-950 dark:text-green-100 dark:hover:bg-green-900 shadow-[3px_3px_0px_#16a34a] dark:shadow-[3px_3px_0px_#4ade80]"
-                                >
-                                    <span className="font-bold text-lg">Кімната №</span>
-                                    <span className="text-xl leading-none font-black text-red-600 dark:text-red-400">{room.roomId}</span>
-                                </Link>
+                                    room={room}
+                                    isAdmin={isAdmin}
+                                    onDelete={deleteRoom}
+                                />
                             ))}
                         </div>
                     </section>

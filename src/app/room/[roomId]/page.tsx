@@ -277,7 +277,7 @@ export default function RoomPage() {
         };
     }, []);
 
-    const [showChords, setShowChords] = useState(true);
+    const [showChords, setShowChords] = useState(false);
 
     type Action = 'down' | 'up' | 'pageDown' | 'pageUp' | 'space';
     const [binding, setBinding] = useState<Record<Action, string>>({
@@ -358,6 +358,7 @@ export default function RoomPage() {
 
         s.on('song_change', (payload: RoomSongChange) => {
             setSongId(payload.songId);
+            setTransposeDelta(0);
         });
 
         s.on('speed_change', (payload: RoomSpeedChange) => {

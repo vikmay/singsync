@@ -294,7 +294,8 @@ export default function Home() {
             if (res.ok) {
                 alert('Пісню запропоновано в кімнату ' + roomId);
             } else {
-                alert('Помилка при пропонуванні');
+                const data = await res.json().catch(() => ({}));
+                alert(data.error || 'Помилка при пропонуванні');
             }
         } catch (e) {
             alert('Помилка з\'єднання');

@@ -294,7 +294,7 @@ async function main() {
 
                     const snapshot = getRoomStateSnapshot(roomId);
                     if (!snapshot || !snapshot.leaderId) {
-                        return res.status(404).json({ error: "Room not active or no leader" });
+                        return res.status(404).json({ error: "У кімнаті ще немає ведучого - пропозиція не надіслана!" });
                     }
 
                     const proposal = {

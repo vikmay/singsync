@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import type { SongContentV1 } from '@/types/song';
 import { transposeLineChords } from '@/lib/transpose';
 import { getUserId } from '@/lib/user';
@@ -149,6 +149,7 @@ function LineBlock({ line, transposeDelta, fontScale, showChords }: { line: Line
 
 export default function RoomPage() {
     const params = useParams<{ roomId: string }>();
+    const router = useRouter();
     const roomId = params?.roomId;
 
     const [userId, setUserId] = useState<string>('');
@@ -391,6 +392,10 @@ export default function RoomPage() {
                 }
             }
         });
+        s.on('room_deleted', () => {
+            alert("Ця кімната була видалена.");
+            router.push('/');
+        });
 
         return () => {
             s.removeAllListeners('leader_change');
@@ -399,8 +404,9 @@ export default function RoomPage() {
             s.removeAllListeners('transpose_change');
             s.removeAllListeners('scroll_update');
             s.removeAllListeners('song_proposed');
+            s.removeAllListeners('room_deleted');
         };
-    }, [socket]);
+    }, [socket, router]);
 
     // Fetch initial room state via HTTP (robust fallback if sockets are slow)
     useEffect(() => {
@@ -410,15 +416,22 @@ export default function RoomPage() {
         async function loadRoom() {
             try {
                 const res = await fetch(`/api/room/${roomId}`);
+                if (cancelled) return;
+                
+                if (res.status === 404) {
+                    alert("Ця кімната більше не існує.");
+                    router.push('/');
+                    return;
+                }
                 if (!res.ok) return;
                 const data = await res.json();
                 if (cancelled) return;
 
-                if (data.room?.songId && !songId) {
-                    setSongId(data.room.songId);
+                if (data.room?.songId) {
+                    setSongId(prev => prev || data.room.songId);
                 }
-                if (data.room?.leaderId && !leaderId) {
-                    setLeaderId(data.room.leaderId);
+                if (data.room?.leaderId) {
+                    setLeaderId(prev => prev || data.room.leaderId);
                 }
             } catch (e) {
                 // ignore
@@ -427,7 +440,7 @@ export default function RoomPage() {
         loadRoom();
 
         return () => { cancelled = true; };
-    }, [roomId, songId, leaderId]);
+    }, [roomId, router]);
 
     // QR for connecting devices
     useEffect(() => {
@@ -803,7 +816,7 @@ export default function RoomPage() {
 
     return (
         <main className="flex h-[100dvh] flex-col overflow-hidden bg-white text-black dark:bg-black dark:text-white">
-            <div className="mx-auto flex h-full w-full max-w-3xl flex-col px-3 pt-3 pb-0">
+            <div className="mx-auto flex h-full w-full max-w-md flex-col px-4 pt-3 pb-0 border-x-2 border-black/5 dark:border-white/5">
                 <header className="mb-2 flex items-start justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-3">
                         <a
@@ -1074,7 +1087,7 @@ export default function RoomPage() {
                         onScroll={onNativeScroll}
                         className="flex-1 overflow-y-auto overscroll-contain"
                     >
-                        <div className="flex flex-col">
+                        <div className="flex flex-col w-full font-sans pb-[50vh] border-2 border-transparent" style={{ fontSize: `${28 * fontScale}px` }}>
                             {lines.length === 0 ?
                                 <div className="p-3 text-sm opacity-80">
                                     Завантаження контенту...

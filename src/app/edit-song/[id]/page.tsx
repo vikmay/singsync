@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { parseRawSong } from '@/lib/chordParser';
+import { parseRawSong, parsedLinesToText } from '@/lib/chordParser';
 import { transposeRawSong } from '@/lib/transpose';
 import VisualChordEditor from '@/components/VisualChordEditor';
 import type { SongContentV1 } from '@/types/song';
@@ -94,6 +94,21 @@ export default function EditSongPage() {
         return () => { cancelled = true; };
     }, [songId]);
 
+    function handleTextOnlyChange(newTextOnly: string) {
+        const oldParsed = parseRawSong(rawLines);
+        const newLines = newTextOnly.split('\n');
+        
+        const newParsed = newLines.map((text, i) => {
+            const oldLine = oldParsed[i] || { text: '', chords: '', placements: [] };
+            return {
+                ...oldLine,
+                text
+            };
+        });
+        
+        setRawLines(parsedLinesToText(newParsed));
+    }
+
     async function submit() {
         setError(null);
         setSaving(true);
@@ -158,7 +173,7 @@ export default function EditSongPage() {
 
     return (
         <main className="flex h-[100dvh] flex-col overflow-hidden bg-white text-black dark:bg-black dark:text-white">
-            <div className="mx-auto flex h-full w-full max-w-xl flex-col p-4 pb-4">
+            <div className="mx-auto flex h-full w-full max-w-md flex-col p-4 pb-4 border-x-2 border-black/5 dark:border-white/5">
                 <header className="mb-2 shrink-0 flex items-start justify-between gap-3">
                     <div>
                         <h1 className="text-2xl font-black">Редагувати пісню</h1>
@@ -308,10 +323,9 @@ export default function EditSongPage() {
                         ) : (
                             <textarea
                                 value={showChords ? rawLines : parseRawSong(rawLines).map(l => l.text).filter(t => t !== undefined).join('\n')}
-                                onChange={(e) => setRawLines(e.target.value)}
-                                readOnly={!showChords}
-                                placeholder={showChords ? "Type your song here..." : "Редагування вимкнено поки акорди приховані"}
-                                className={`h-full w-full resize-none rounded border-2 border-black bg-white py-3 pl-[10px] pr-2 text-black outline-none font-black leading-tight whitespace-pre-wrap break-words overflow-auto dark:border-white dark:bg-black dark:text-white ${!showChords ? 'opacity-70 bg-black/5 dark:bg-white/5' : ''}`}
+                                onChange={(e) => showChords ? setRawLines(e.target.value) : handleTextOnlyChange(e.target.value)}
+                                placeholder={showChords ? "Type your song here..." : "Можете редагувати текст (акорди залишаться збереженими)"}
+                                className={`h-full w-full resize-none rounded border-2 border-black bg-white px-2 py-2 text-center text-black outline-none font-sans font-black leading-tight whitespace-pre-wrap break-words overflow-auto dark:border-white dark:bg-black dark:text-white ${!showChords ? 'bg-black/5 dark:bg-white/5' : ''}`}
                                 style={{ fontSize: `${28 * defaultFontScale}px` }}
                             />
                         )}

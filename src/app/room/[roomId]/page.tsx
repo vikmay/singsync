@@ -378,13 +378,17 @@ export default function RoomPage() {
             setScrollTarget(payload.scrollPosition);
         });
 
-        s.on('song_proposed', (payload: {songId: number, songTitle: string, artist: string}) => {
+        s.on('song_proposed', (payload: {songId: number, songTitle: string, artist: string} | null) => {
             if (isLeaderRef.current) {
-                setProposal({
-                    songId: payload.songId,
-                    songTitle: payload.songTitle,
-                    artist: payload.artist,
-                });
+                if (payload) {
+                    setProposal({
+                        songId: payload.songId,
+                        songTitle: payload.songTitle,
+                        artist: payload.artist,
+                    });
+                } else {
+                    setProposal(null);
+                }
             }
         });
 
@@ -711,6 +715,17 @@ export default function RoomPage() {
                 roomId,
                 userId,
                 songId: newSongId,
+                timestamp: Date.now(),
+            });
+        }
+    }
+
+    function clearProposal() {
+        setProposal(null);
+        if (socket && roomId) {
+            socket.emit('clear_proposal', {
+                roomId,
+                userId,
                 timestamp: Date.now(),
             });
         }
@@ -1174,13 +1189,13 @@ export default function RoomPage() {
                         </div>
                         <div className="flex shrink-0 gap-2 w-full sm:w-auto">
                             <button
-                                onClick={() => { selectSong(proposal.songId); setProposal(null); }}
+                                onClick={() => { selectSong(proposal.songId); clearProposal(); }}
                                 className="flex-1 sm:flex-none rounded-lg border-2 border-blue-700 bg-blue-600 px-4 py-2 text-sm font-black text-white transition active:translate-x-[1px] active:translate-y-[1px] hover:bg-blue-700 dark:border-blue-300 dark:bg-blue-500 dark:hover:bg-blue-600"
                             >
                                 Увімкнути
                             </button>
                             <button
-                                onClick={() => setProposal(null)}
+                                onClick={() => clearProposal()}
                                 className="flex-1 sm:flex-none rounded-lg border-2 border-blue-700 bg-transparent px-4 py-2 text-sm font-black text-blue-800 transition active:translate-x-[1px] active:translate-y-[1px] hover:bg-blue-200 dark:border-blue-300 dark:text-blue-200 dark:hover:bg-blue-800/50"
                             >
                                 Сховати

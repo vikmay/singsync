@@ -4,6 +4,7 @@ const {
     setSong,
     setTransposeDelta,
     updateScroll,
+    setProposal,
 } = require("./roomState");
 
 function registerSocketHandlers(io, { getRoomStateSnapshot: getSnapshotFromDeps } = {}) {
@@ -100,6 +101,10 @@ function registerSocketHandlers(io, { getRoomStateSnapshot: getSnapshotFromDeps 
                     speed: updated.speed,
                     timestamp: Date.now(),
                 });
+
+                if (updated.proposal) {
+                    socket.emit("song_proposed", updated.proposal);
+                }
 
                 if (typeof ack === "function") ack({ ok: true });
             } catch (err) {
@@ -232,6 +237,24 @@ function registerSocketHandlers(io, { getRoomStateSnapshot: getSnapshotFromDeps 
             if (typeof ack === "function") ack({ ok: true });
         });
 
+        socket.on("clear_proposal", (payload, ack) => {
+            const roomId = safeString(payload?.roomId);
+            if (!roomId) return;
+
+            const userId = safeString(payload?.userId) || socket.data.userId;
+            const snapshot = getSnapshot(roomId);
+
+            if (!snapshot.leaderId || snapshot.leaderId !== userId) {
+                if (typeof ack === "function") ack({ ok: false, error: "Only leader can clear proposal" });
+                return;
+            }
+
+            setProposal(roomId, null);
+
+            emitToRoom(roomId, "song_proposed", null); // broadcast clear
+            if (typeof ack === "function") ack({ ok: true });
+        });
+
         socket.on("speed_change", (payload, ack) => {
             const roomId = safeString(payload?.roomId);
             if (!roomId) return;
@@ -302,24 +325,9 @@ function registerSocketHandlers(io, { getRoomStateSnapshot: getSnapshotFromDeps 
 
             const snapshot = getSnapshot(roomId);
 
-            // If the leader disconnected, promote another member (first available).
-            if (snapshot.leaderId && snapshot.leaderId === userId) {
-                const memberSocketIds = getMembers(roomId);
-                if (memberSocketIds.length > 0) {
-                    const nextSocketId = memberSocketIds[0];
-                    // Best effort: we don't map socketId->userId globally, so we'll keep leader null
-                    // and rely on the next leader_join selection on join. For MVP.
-                    setLeader(roomId, null);
-                } else {
-                    setLeader(roomId, null);
-                }
-
-                emitToRoom(roomId, "leader_change", {
-                    roomId,
-                    leaderId: null,
-                    timestamp: Date.now(),
-                });
-            }
+            // If the leader disconnected, we NO LONGER promote another member or clear the leader.
+            // This allows the leader to navigate to the home page or refresh without losing their role.
+            // If the leader actually left for good, another participant can manually click "Take Leadership".
         });
     });
 }

@@ -26,6 +26,7 @@ const {
     getRoomStateSnapshot,
     setLeader,
     setSong,
+    setProposal,
 } = require("./roomState");
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
@@ -294,12 +295,16 @@ async function main() {
                         return res.status(404).json({ error: "Room not active or no leader" });
                     }
 
-                    io.to(roomId).emit("song_proposed", {
+                    const proposal = {
                         songId: Number(songId),
                         songTitle,
                         artist: artist || "",
                         timestamp: Date.now(),
-                    });
+                    };
+
+                    setProposal(roomId, proposal);
+
+                    io.to(roomId).emit("song_proposed", proposal);
 
                     res.json({ ok: true });
                 } catch (e) {

@@ -377,16 +377,14 @@ export default function RoomPage() {
         });
 
         s.on('song_proposed', (payload: {songId: number, songTitle: string, artist: string} | null) => {
-            if (isLeaderRef.current) {
-                if (payload) {
-                    setProposal({
-                        songId: payload.songId,
-                        songTitle: payload.songTitle,
-                        artist: payload.artist,
-                    });
-                } else {
-                    setProposal(null);
-                }
+            if (payload) {
+                setProposal({
+                    songId: payload.songId,
+                    songTitle: payload.songTitle,
+                    artist: payload.artist,
+                });
+            } else {
+                setProposal(null);
             }
         });
         s.on('room_deleted', () => {
@@ -836,7 +834,7 @@ export default function RoomPage() {
                                         socket.emit('take_leadership', { roomId, userId });
                                     }
                                 }}
-                                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border-2 transition active:translate-x-[1px] active:translate-y-[1px] ${
+                                className={`flex h-10 w-12 shrink-0 items-center justify-center rounded-lg border-2 transition active:translate-x-[1px] active:translate-y-[1px] ${
                                     !isLeader
                                         ? 'border-orange-500 bg-orange-500/10 text-orange-600 dark:text-orange-400'
                                         : 'border-blue-500 bg-blue-500/10 text-blue-600 dark:text-blue-400'
@@ -844,13 +842,13 @@ export default function RoomPage() {
                                 title={isLeader ? 'Роль: Ведучий' : 'Бути ведучим'}
                             >
                                 {!isLeader ?
-                                    <svg viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current stroke-2" strokeLinecap="round" strokeLinejoin="round">
-                                        <path d="M2 6l4 4 6-6 6 6 4-4v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z" />
-                                        <line x1="4" y1="4" x2="20" y2="20" />
+                                    <svg viewBox="0 0 28 24" className="h-6 w-7 fill-none stroke-current stroke-2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M 2 4 l 4 6 l 4 -6 l 4 6 l 4 -6 l 4 6 l 4 -6 v 13 a 2 2 0 0 1 -2 2 H 4 a 2 2 0 0 1 -2 -2 z" />
+                                        <line x1="2" y1="2" x2="26" y2="22" />
                                     </svg>
                                 :
-                                    <svg viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current stroke-2" strokeLinecap="round" strokeLinejoin="round">
-                                        <path d="M2 6l4 4 6-6 6 6 4-4v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z" />
+                                    <svg viewBox="0 0 28 24" className="h-6 w-7 fill-none stroke-current stroke-2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M 2 4 l 4 6 l 4 -6 l 4 6 l 4 -6 l 4 6 l 4 -6 v 13 a 2 2 0 0 1 -2 2 H 4 a 2 2 0 0 1 -2 -2 z" />
                                     </svg>
                                 }
                             </button>
@@ -1026,27 +1024,26 @@ export default function RoomPage() {
                                 {songTitle || '—'}
                             </div>
                             
-                            <div className="flex shrink-0 items-center gap-2">
-                                {isLeader && (
-                                    <button
-                                        type="button"
-                                        onClick={openSongModal}
-                                        className="rounded-lg border-2 border-black px-3 h-10 text-sm font-black transition active:translate-x-[1px] active:translate-y-[1px] dark:border-white"
-                                    >
-                                        Змінити пісню
-                                    </button>
-                                )}
+                            {isLeader && (
                                 <button
                                     type="button"
-                                    onClick={() => setShowChords(!showChords)}
-                                    className={`relative flex h-10 w-20 shrink-0 items-center justify-center transition active:translate-x-[1px] active:translate-y-[1px] ${
-                                        showChords
-                                            ? 'text-blue-700 dark:text-blue-400'
-                                            : 'text-black dark:text-white'
-                                    }`}
-                                    title={showChords ? 'Сховати акорди' : 'Показати акорди'}
+                                    onClick={openSongModal}
+                                    className="shrink-0 rounded-lg border-2 border-black px-3 h-10 text-sm font-black transition active:translate-x-[1px] active:translate-y-[1px] dark:border-white"
                                 >
-                                    <svg 
+                                    Змінити пісню
+                                </button>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => setShowChords(!showChords)}
+                                className={`ml-auto relative flex h-10 w-20 shrink-0 items-center justify-center transition active:translate-x-[1px] active:translate-y-[1px] ${
+                                    showChords
+                                        ? 'text-blue-700 dark:text-blue-400'
+                                        : 'text-black dark:text-white'
+                                }`}
+                                title={showChords ? 'Сховати акорди' : 'Показати акорди'}
+                            >
+                                <svg 
                                         viewBox="-61.2 -61.2 734.40 734.40" 
                                         className="absolute inset-0 h-full w-full fill-current transition-transform scale-[1.8]"
                                     >
@@ -1056,7 +1053,6 @@ export default function RoomPage() {
                                         {!showChords && <line x1="0" y1="306" x2="612" y2="306" stroke="currentColor" strokeWidth="30" strokeLinecap="round" />}
                                     </svg>
                                 </button>
-                            </div>
                         </div>
                     </div>
                 </section>

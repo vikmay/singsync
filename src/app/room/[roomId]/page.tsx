@@ -223,36 +223,52 @@ export default function RoomPage() {
     const scrollTargetRef = useRef(scrollTarget);
     scrollTargetRef.current = scrollTarget;
 
-    // Wake Lock: prevent screen from turning off using NoSleep.js (works over HTTP)
+    // Wake Lock: prevent screen from turning off using the modern Screen Wake Lock API (requires HTTPS)
     useEffect(() => {
-        let noSleep: any = null;
+        let wakeLock: any = null;
 
-        const enableNoSleep = () => {
-            if (!noSleep) {
-                // Використовуємо require замість import(), щоб уникнути ChunkLoadError через localtunnel
-                const NoSleepModule = require('nosleep.js');
-                const NoSleep = NoSleepModule.default || NoSleepModule;
-                noSleep = new NoSleep();
+        const requestWakeLock = async () => {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await (navigator as any).wakeLock.request('screen');
+                    console.log('Screen Wake Lock enabled');
+                    
+                    wakeLock.addEventListener('release', () => {
+                        console.log('Screen Wake Lock was released');
+                    });
+                }
+            } catch (err: any) {
+                console.error(`Wake Lock error: ${err.name}, ${err.message}`);
             }
-            if (!noSleep.isEnabled) {
-                noSleep.enable();
-                console.log('NoSleep enabled');
-            }
-            // Remove listeners once activated
-            document.removeEventListener('click', enableNoSleep);
-            document.removeEventListener('touchstart', enableNoSleep);
         };
 
-        // Needs a user interaction to start
-        document.addEventListener('click', enableNoSleep);
-        document.addEventListener('touchstart', enableNoSleep);
+        const handleVisibilityChange = () => {
+            if (wakeLock !== null && document.visibilityState === 'visible') {
+                requestWakeLock();
+            }
+        };
+
+        const initWakeLock = () => {
+            requestWakeLock();
+            document.removeEventListener('click', initWakeLock);
+            document.removeEventListener('touchstart', initWakeLock);
+        };
+
+        // Needs user interaction to start initially
+        document.addEventListener('click', initWakeLock);
+        document.addEventListener('touchstart', initWakeLock);
+        // Automatically re-request if user minimizes browser and comes back
+        document.addEventListener('visibilitychange', handleVisibilityChange);
 
         return () => {
-            if (noSleep && noSleep.isEnabled) {
-                noSleep.disable();
+            if (wakeLock !== null) {
+                wakeLock.release().then(() => {
+                    wakeLock = null;
+                });
             }
-            document.removeEventListener('click', enableNoSleep);
-            document.removeEventListener('touchstart', enableNoSleep);
+            document.removeEventListener('click', initWakeLock);
+            document.removeEventListener('touchstart', initWakeLock);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
     }, []);
 

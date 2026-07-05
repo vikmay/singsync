@@ -223,79 +223,7 @@ export default function RoomPage() {
     const scrollTargetRef = useRef(scrollTarget);
     scrollTargetRef.current = scrollTarget;
 
-    // Wake Lock: prevent screen from turning off using modern API + fallback to NoSleep.js
-    useEffect(() => {
-        let wakeLock: any = null;
-        let noSleep: any = null;
 
-        const requestWakeLock = async () => {
-            // 1. Try modern API first (iOS 16.4+, Chrome, etc)
-            if ('wakeLock' in navigator) {
-                try {
-                    wakeLock = await (navigator as any).wakeLock.request('screen');
-                    console.log('Screen Wake Lock API enabled');
-                    showToast('Екран заблоковано (API)', 'success');
-                    
-                    wakeLock.addEventListener('release', () => {
-                        console.log('Screen Wake Lock was released');
-                    });
-                    return; // Success! No need for fallback.
-                } catch (err: any) {
-                    console.error(`Wake Lock API error: ${err.name}, ${err.message}`);
-                    showToast(`Помилка API: ${err.message}`, 'error');
-                    // Continue to fallback if it fails
-                }
-            } else {
-                showToast('API не підтримується браузером', 'error');
-            }
-
-            // 2. Fallback for older devices or in-app browsers (Telegram/Viber)
-            try {
-                if (!noSleep) {
-                    const NoSleepModule = require('nosleep.js');
-                    const NoSleep = NoSleepModule.default || NoSleepModule;
-                    noSleep = new NoSleep();
-                }
-                if (!noSleep.isEnabled) {
-                    noSleep.enable();
-                    console.log('NoSleep fallback enabled (video trick)');
-                    showToast('Екран заблоковано (Fallback)', 'success');
-                }
-            } catch (err: any) {
-                console.error('Failed to enable NoSleep fallback', err);
-                showToast(`Помилка Fallback: ${err.message}`, 'error');
-            }
-        };
-
-        const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible') {
-                requestWakeLock();
-            }
-        };
-
-        const initWakeLock = () => {
-            requestWakeLock();
-            document.removeEventListener('click', initWakeLock);
-            document.removeEventListener('touchstart', initWakeLock);
-        };
-
-        // Needs user interaction to start initially
-        document.addEventListener('click', initWakeLock);
-        document.addEventListener('touchstart', initWakeLock);
-        document.addEventListener('visibilitychange', handleVisibilityChange);
-
-        return () => {
-            if (wakeLock !== null) {
-                wakeLock.release().catch(() => {});
-            }
-            if (noSleep && noSleep.isEnabled) {
-                noSleep.disable();
-            }
-            document.removeEventListener('click', initWakeLock);
-            document.removeEventListener('touchstart', initWakeLock);
-            document.removeEventListener('visibilitychange', handleVisibilityChange);
-        };
-    }, []);
 
     const [fontScale, setFontScale] = useState(1);
     const scrollRef = useRef<HTMLDivElement | null>(null);

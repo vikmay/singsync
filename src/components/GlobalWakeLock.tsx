@@ -60,26 +60,36 @@ export default function GlobalWakeLock() {
     if (!needsActivation) return null;
 
     return (
-        <button
-            onClick={() => {
-                const requestWakeLockManual = async () => {
-                    try {
-                        wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
-                        setNeedsActivation(false);
-                        showToast('Екран більше не гаснутиме!', 'success');
-                        wakeLockRef.current.addEventListener('release', () => {
-                            wakeLockRef.current = null;
-                            if (document.visibilityState === 'visible') setNeedsActivation(true);
-                        });
-                    } catch (e) {
-                        showToast('Не вдалося заблокувати екран', 'error');
-                    }
-                };
-                requestWakeLockManual();
-            }}
-            className="fixed bottom-[100px] left-1/2 -translate-x-1/2 z-50 rounded-full bg-black/80 px-6 py-3 font-bold text-white shadow-xl backdrop-blur-md border border-white/20 active:scale-95 transition-transform"
-        >
-            🔒 Не гасити екран
-        </button>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+            <button
+                onClick={() => {
+                    const requestWakeLockManual = async () => {
+                        try {
+                            wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+                            setNeedsActivation(false);
+                            showToast('Екран більше не гаснутиме!', 'success');
+                            wakeLockRef.current.addEventListener('release', () => {
+                                wakeLockRef.current = null;
+                                if (document.visibilityState === 'visible') setNeedsActivation(true);
+                            });
+                        } catch (e) {
+                            showToast('Не вдалося заблокувати екран', 'error');
+                            setNeedsActivation(false); // Ховаємо навіть при помилці, щоб не блокувати сайт назавжди
+                        }
+                    };
+                    requestWakeLockManual();
+                }}
+                className="flex flex-col items-center justify-center gap-4 rounded-3xl bg-white p-8 text-black shadow-2xl active:scale-95 transition-transform max-w-sm text-center"
+            >
+                <div className="text-6xl">📱</div>
+                <h2 className="text-2xl font-black">Увага!</h2>
+                <p className="font-bold opacity-80">
+                    Натисніть цю кнопку, щоб ваш екран не згасав під час використання програми.
+                </p>
+                <div className="mt-2 w-full rounded-xl bg-blue-600 py-4 font-black text-white text-lg">
+                    Зрозумів, увімкнути!
+                </div>
+            </button>
+        </div>
     );
 }

@@ -815,11 +815,23 @@ export default function RoomPage() {
 
     async function toggleFullscreen() {
         try {
-            if (!document.fullscreenElement) {
-                await document.documentElement.requestFullscreen();
-                setFullscreen(true);
+            if (!document.fullscreenElement && !(document as any).webkitFullscreenElement) {
+                const docEl = document.documentElement as any;
+                if (docEl.requestFullscreen) {
+                    await docEl.requestFullscreen();
+                    setFullscreen(true);
+                } else if (docEl.webkitRequestFullscreen) {
+                    await docEl.webkitRequestFullscreen();
+                    setFullscreen(true);
+                } else {
+                    showToast('Повноекранний режим не підтримується на цьому пристрої (iOS)', 'error');
+                }
             } else {
-                await document.exitFullscreen();
+                if (document.exitFullscreen) {
+                    await document.exitFullscreen();
+                } else if ((document as any).webkitExitFullscreen) {
+                    await (document as any).webkitExitFullscreen();
+                }
                 setFullscreen(false);
             }
         } catch {

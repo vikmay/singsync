@@ -398,17 +398,22 @@ async function main() {
                     // If user provides a PUBLIC_HOST in env, use it.
                     // Otherwise, try to use the detected LAN IP.
                     // Fall back to hostname if nothing else works.
-                    let publicHost = reqHostname;
-                    if (process.env.PUBLIC_HOST && process.env.PUBLIC_HOST.trim()) {
-                        publicHost = process.env.PUBLIC_HOST.trim();
-                    } else if (localIp) {
-                        publicHost = localIp;
-                    } else if (reqHostname === "0.0.0.0") {
-                        publicHost = "localhost";
+                    // Determine host and protocol from request headers
+                    let hostHeader = req.headers.host || reqHostname;
+                    let protocol = req.headers['x-forwarded-proto'] || req.protocol || "http";
+
+                    // Force HTTPS if it's our duckdns domain
+                    if (hostHeader.includes('duckdns.org')) {
+                        protocol = "https";
+                    } else if (process.env.PUBLIC_HOST) {
+                        hostHeader = process.env.PUBLIC_HOST.replace(/^https?:\/\//, '');
+                        protocol = process.env.PUBLIC_HOST.startsWith('https') ? 'https' : 'http';
+                    } else if (localIp && (!req.headers.host || req.headers.host.startsWith('localhost'))) {
+                        // Fallback to local IP only if accessed via localhost locally
+                        hostHeader = `${localIp}:${port}`;
                     }
 
-                    const protocol = "http";
-                    const url = `${protocol}://${publicHost}:${port}/room/${encodeURIComponent(roomId)}`;
+                    const url = `${protocol}://${hostHeader}/room/${encodeURIComponent(roomId)}`;
 
                     const dataUrl = await qrcode.toDataURL(url, {
                         errorCorrectionLevel: "M",

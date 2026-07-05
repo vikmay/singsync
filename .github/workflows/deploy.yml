@@ -20,5 +20,6 @@ jobs:
             cd /var/www/singsync
             git pull
             npm install
+            rm -rf .next
             npm run build
             pm2 restart singsync

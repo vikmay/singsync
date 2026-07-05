@@ -18,11 +18,11 @@ export default function GlobalWakeLock() {
                     wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
                     console.log('Screen Wake Lock API enabled');
                     setNeedsActivation(false);
-                    
+
                     if (isManualClick) {
                         showToast('Екран більше не гаснутиме!', 'success');
                     }
-                    
+
                     wakeLockRef.current.addEventListener('release', () => {
                         console.log('Screen Wake Lock was released');
                         wakeLockRef.current = null;
@@ -50,7 +50,7 @@ export default function GlobalWakeLock() {
 
         return () => {
             if (wakeLockRef.current !== null) {
-                wakeLockRef.current.release().catch(() => {});
+                wakeLockRef.current.release().catch(() => { });
                 wakeLockRef.current = null;
             }
             document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -87,7 +87,7 @@ export default function GlobalWakeLock() {
                     Натисніть цю кнопку, щоб ваш екран не згасав під час використання програми.
                 </p>
                 <div className="mt-2 w-full rounded-xl bg-blue-600 py-4 font-black text-white text-lg">
-                    Зрозумів, увімкнути!
+                    Зрозуміло, увімкнути!
                 </div>
             </button>
         </div>

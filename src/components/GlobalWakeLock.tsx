@@ -1,40 +1,51 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { showToast } from '@/lib/toast';
 
 export default function GlobalWakeLock() {
     const wakeLockRef = useRef<any>(null);
+    const [needsActivation, setNeedsActivation] = useState(false);
 
     useEffect(() => {
-        const requestWakeLock = async () => {
+        if (!('wakeLock' in navigator)) {
+            return;
+        }
+
+        const requestWakeLock = async (isManualClick = false) => {
             if ('wakeLock' in navigator && wakeLockRef.current === null && document.visibilityState === 'visible') {
                 try {
                     wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
                     console.log('Screen Wake Lock API enabled');
+                    setNeedsActivation(false);
+                    
+                    if (isManualClick) {
+                        showToast('Екран більше не гаснутиме!', 'success');
+                    }
                     
                     wakeLockRef.current.addEventListener('release', () => {
                         console.log('Screen Wake Lock was released');
                         wakeLockRef.current = null;
+                        if (document.visibilityState === 'visible') {
+                            setNeedsActivation(true);
+                        }
                     });
                 } catch (err: any) {
                     console.error(`Wake Lock API error: ${err.name}, ${err.message}`);
+                    setNeedsActivation(true);
                 }
             }
         };
 
-        const handleInteraction = () => {
-            requestWakeLock();
-        };
-
         const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible') {
-                requestWakeLock();
+            if (document.visibilityState === 'visible' && wakeLockRef.current === null) {
+                requestWakeLock(false);
             }
         };
 
-        // Будь-який клік або тап в додатку буде намагатися увімкнути WakeLock, якщо він ще не увімкнений
-        document.addEventListener('click', handleInteraction);
-        document.addEventListener('touchstart', handleInteraction, { passive: true });
+        // Try automatically on mount (works on some Androids, fails on iOS Safari)
+        requestWakeLock(false);
+
         document.addEventListener('visibilitychange', handleVisibilityChange);
 
         return () => {
@@ -42,11 +53,33 @@ export default function GlobalWakeLock() {
                 wakeLockRef.current.release().catch(() => {});
                 wakeLockRef.current = null;
             }
-            document.removeEventListener('click', handleInteraction);
-            document.removeEventListener('touchstart', handleInteraction);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
     }, []);
 
-    return null;
+    if (!needsActivation) return null;
+
+    return (
+        <button
+            onClick={() => {
+                const requestWakeLockManual = async () => {
+                    try {
+                        wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+                        setNeedsActivation(false);
+                        showToast('Екран більше не гаснутиме!', 'success');
+                        wakeLockRef.current.addEventListener('release', () => {
+                            wakeLockRef.current = null;
+                            if (document.visibilityState === 'visible') setNeedsActivation(true);
+                        });
+                    } catch (e) {
+                        showToast('Не вдалося заблокувати екран', 'error');
+                    }
+                };
+                requestWakeLockManual();
+            }}
+            className="fixed bottom-[100px] left-1/2 -translate-x-1/2 z-50 rounded-full bg-black/80 px-6 py-3 font-bold text-white shadow-xl backdrop-blur-md border border-white/20 active:scale-95 transition-transform"
+        >
+            🔒 Не гасити екран
+        </button>
+    );
 }

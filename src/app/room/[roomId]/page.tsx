@@ -250,11 +250,6 @@ export default function RoomPage() {
     const [qrLoading, setQrLoading] = useState(false);
     const [showQr, setShowQr] = useState(false);
 
-    const [isSongModalOpen, setIsSongModalOpen] = useState(false);
-    const [availableSongs, setAvailableSongs] = useState<any[]>([]);
-    const [loadingSongs, setLoadingSongs] = useState(false);
-    const [songSearchQuery, setSongSearchQuery] = useState('');
-
     const [isDetached, setIsDetached] = useState(false);
 
     const [proposal, setProposal] = useState<{songId: number, songTitle: string, artist: string} | null>(null);
@@ -262,6 +257,11 @@ export default function RoomPage() {
     isLeaderRef.current = isLeader;
 
     const [adminClicks, setAdminClicks] = useState(0);
+
+    const [fullscreenSupported, setFullscreenSupported] = useState(true);
+    useEffect(() => {
+        setFullscreenSupported(!!(document.documentElement as any).requestFullscreen || !!(document.documentElement as any).webkitRequestFullscreen);
+    }, []);
 
     async function handleAdminClick() {
         const newCount = adminClicks + 1;
@@ -489,38 +489,6 @@ export default function RoomPage() {
         };
     }, [roomId]);
 
-    // Fetch songs for modal when open
-    useEffect(() => {
-        if (!isSongModalOpen) return;
-
-        let cancelled = false;
-        
-        async function loadSongs() {
-            setLoadingSongs(true);
-            try {
-                const qs = songSearchQuery.trim() ? `?q=${encodeURIComponent(songSearchQuery.trim())}` : '';
-                const res = await fetch(`/api/songs${qs}`);
-                if (res.ok) {
-                    const data = await res.json();
-                    if (!cancelled) setAvailableSongs(data.songs || []);
-                }
-            } catch (e) {
-                // ignore
-            } finally {
-                if (!cancelled) setLoadingSongs(false);
-            }
-        }
-
-        const timer = setTimeout(() => {
-            loadSongs();
-        }, 300);
-
-        return () => {
-            cancelled = true;
-            clearTimeout(timer);
-        };
-    }, [isSongModalOpen, songSearchQuery]);
-
     // Fetch song when songId changes
     useEffect(() => {
         let cancelled = false;
@@ -725,13 +693,7 @@ export default function RoomPage() {
         resetTransposeTimeout();
     }
 
-    async function openSongModal() {
-        setIsSongModalOpen(true);
-        setSongSearchQuery('');
-    }
-
     function selectSong(newSongId: number) {
-        setIsSongModalOpen(false);
         if (songId === newSongId) return;
 
         setSongId(newSongId);
@@ -858,10 +820,10 @@ export default function RoomPage() {
                             <button
                                 type="button"
                                 onClick={() => {
+                                    // Always emit take_leadership as a fail-safe sync
+                                    socket.emit('take_leadership', { roomId, userId });
                                     if (isLeader) {
                                         handleAdminClick();
-                                    } else {
-                                        socket.emit('take_leadership', { roomId, userId });
                                     }
                                 }}
                                 className={`flex h-10 w-12 shrink-0 items-center justify-center rounded-lg border-2 transition active:translate-x-[1px] active:translate-y-[1px] ${
@@ -886,46 +848,6 @@ export default function RoomPage() {
 
                         {isLeader && (
                             <div className="relative shrink-0">
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        if (showTransposeMenu) {
-                                            setShowTransposeMenu(false);
-                                            if (transposeTimeoutRef.current) clearTimeout(transposeTimeoutRef.current);
-                                        } else {
-                                            setShowTransposeMenu(true);
-                                            resetTransposeTimeout();
-                                        }
-                                    }}
-                                    className={`flex h-10 px-3 shrink-0 items-center justify-center rounded-lg border-2 transition active:translate-x-[1px] active:translate-y-[1px] font-black text-sm ${
-                                        showTransposeMenu ? 'border-blue-500 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : 'border-black bg-white dark:border-white dark:bg-black'
-                                    }`}
-                                    title="Тональність"
-                                >
-                                    Тон:{transposeDelta > 0 ? `+${transposeDelta}` : transposeDelta}
-                                </button>
-                                
-                                {showTransposeMenu && (
-                                    <div className="absolute top-12 left-1/2 -translate-x-1/2 z-50 flex h-10 items-center rounded-lg border-2 border-black bg-white font-black shadow-[3px_3px_0px_rgba(0,0,0,1)] dark:border-white dark:bg-black dark:shadow-[3px_3px_0px_rgba(255,255,255,1)]">
-                                        <button
-                                            type="button"
-                                            onClick={() => changeTranspose(-1)}
-                                            disabled={transposeDelta <= -11}
-                                            className="flex h-full w-12 items-center justify-center text-xl transition active:bg-black active:text-white dark:active:bg-white dark:active:text-black rounded-l-md disabled:opacity-20 disabled:active:bg-transparent disabled:active:text-inherit"
-                                        >
-                                            -
-                                        </button>
-                                        <div className="w-[2px] h-full bg-black dark:bg-white"></div>
-                                        <button
-                                            type="button"
-                                            onClick={() => changeTranspose(1)}
-                                            disabled={transposeDelta >= 11}
-                                            className="flex h-full w-12 items-center justify-center text-xl transition active:bg-black active:text-white dark:active:bg-white dark:active:text-black rounded-r-md disabled:opacity-20 disabled:active:bg-transparent disabled:active:text-inherit"
-                                        >
-                                            +
-                                        </button>
-                                    </div>
-                                )}
                             </div>
                         )}
 
@@ -1028,22 +950,24 @@ export default function RoomPage() {
                         </button>
                     </div>
 
-                    <button
-                        type="button"
-                        onClick={toggleFullscreen}
-                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border-2 border-black bg-white text-lg font-black transition active:translate-x-[1px] active:translate-y-[1px] dark:border-white dark:bg-black dark:text-white"
-                        title="Повний екран"
-                    >
-                        {fullscreen ?
-                            <svg viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current stroke-2">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M21 9h-6V3 M15 9l7-7 M3 9h6V3 M9 9L2 2 M21 15h-6v6 M15 15l7 7 M3 15h6v6 M9 15l-7 7" />
-                            </svg>
-                        :
-                            <svg viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current stroke-2">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 3h6v6 M21 3l-7 7 M9 3H3v6 M3 3l7 7 M15 21h6v-6 M21 21l-7-7 M9 21H3v-6 M3 21l7-7" />
-                            </svg>
-                        }
-                    </button>
+                    {fullscreenSupported && (
+                        <button
+                            type="button"
+                            onClick={toggleFullscreen}
+                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border-2 border-black bg-white text-lg font-black transition active:translate-x-[1px] active:translate-y-[1px] dark:border-white dark:bg-black dark:text-white"
+                            title="Повний екран"
+                        >
+                            {fullscreen ?
+                                <svg viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current stroke-2">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 9h-6V3 M15 9l7-7 M3 9h6V3 M9 9L2 2 M21 15h-6v6 M15 15l7 7 M3 15h6v6 M9 15l-7 7" />
+                                </svg>
+                            :
+                                <svg viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current stroke-2">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 3h6v6 M21 3l-7 7 M9 3H3v6 M3 3l7 7 M15 21h6v-6 M21 21l-7-7 M9 21H3v-6 M3 21l7-7" />
+                                </svg>
+                            }
+                        </button>
+                    )}
                 </header>
 
 
@@ -1056,19 +980,54 @@ export default function RoomPage() {
                                 {songTitle || '—'}
                             </div>
                             
-                            {isLeader && (
-                                <button
-                                    type="button"
-                                    onClick={openSongModal}
-                                    className="shrink-0 rounded-lg border-2 border-black px-3 h-10 text-sm font-black transition active:translate-x-[1px] active:translate-y-[1px] dark:border-white"
-                                >
-                                    Змінити пісню
-                                </button>
+                            {showChords && (
+                                <div className="relative shrink-0 ml-auto">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (showTransposeMenu) {
+                                                setShowTransposeMenu(false);
+                                                if (transposeTimeoutRef.current) clearTimeout(transposeTimeoutRef.current);
+                                            } else {
+                                                setShowTransposeMenu(true);
+                                                resetTransposeTimeout();
+                                            }
+                                        }}
+                                        className={`flex h-10 px-3 shrink-0 items-center justify-center rounded-lg border-2 transition active:translate-x-[1px] active:translate-y-[1px] font-black text-sm ${
+                                            showTransposeMenu ? 'border-blue-500 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : 'border-black bg-white dark:border-white dark:bg-black'
+                                        }`}
+                                        title="Тональність"
+                                    >
+                                        Тон:{transposeDelta > 0 ? `+${transposeDelta}` : transposeDelta}
+                                    </button>
+                                    
+                                    {showTransposeMenu && (
+                                        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-50 flex h-10 items-center rounded-lg border-2 border-black bg-white font-black shadow-[3px_3px_0px_rgba(0,0,0,1)] dark:border-white dark:bg-black dark:shadow-[3px_3px_0px_rgba(255,255,255,1)]">
+                                            <button
+                                                type="button"
+                                                onClick={() => changeTranspose(-1)}
+                                                disabled={transposeDelta <= -11}
+                                                className="flex h-full w-12 items-center justify-center text-xl transition active:bg-black active:text-white dark:active:bg-white dark:active:text-black rounded-l-md disabled:opacity-20 disabled:active:bg-transparent disabled:active:text-inherit"
+                                            >
+                                                -
+                                            </button>
+                                            <div className="w-[2px] h-full bg-black dark:bg-white"></div>
+                                            <button
+                                                type="button"
+                                                onClick={() => changeTranspose(1)}
+                                                disabled={transposeDelta >= 11}
+                                                className="flex h-full w-12 items-center justify-center text-xl transition active:bg-black active:text-white dark:active:bg-white dark:active:text-black rounded-r-md disabled:opacity-20 disabled:active:bg-transparent disabled:active:text-inherit"
+                                            >
+                                                +
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
                             )}
                             <button
                                 type="button"
                                 onClick={() => setShowChords(!showChords)}
-                                className={`ml-auto relative flex h-10 w-20 shrink-0 items-center justify-center transition active:translate-x-[1px] active:translate-y-[1px] ${
+                                className={`${showChords ? '' : 'ml-auto'} relative flex h-10 w-20 shrink-0 items-center justify-center transition active:translate-x-[1px] active:translate-y-[1px] ${
                                     showChords
                                         ? 'text-blue-700 dark:text-blue-400'
                                         : 'text-black dark:text-white'
@@ -1128,54 +1087,6 @@ export default function RoomPage() {
 
 
 
-                {isSongModalOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-                        <div className="w-full max-w-md rounded-xl border-2 border-black bg-white p-4 shadow-xl flex flex-col max-h-[90vh] dark:border-white dark:bg-black">
-                            <div className="mb-4 flex flex-shrink-0 items-center justify-between">
-                                <h2 className="text-xl font-black text-black dark:text-white">Оберіть нову пісню</h2>
-                                <button 
-                                    onClick={() => setIsSongModalOpen(false)}
-                                    className="text-2xl font-black leading-none opacity-50 hover:opacity-100"
-                                >
-                                    ×
-                                </button>
-                            </div>
-
-                            <input
-                                type="text"
-                                placeholder="Пошук пісні або виконавця..."
-                                value={songSearchQuery}
-                                onChange={(e) => setSongSearchQuery(e.target.value)}
-                                className="mb-4 w-full flex-shrink-0 rounded border-2 border-black p-2 font-bold focus:outline-none focus:ring-2 focus:ring-black/20 dark:border-white dark:bg-black dark:text-white dark:focus:ring-white/20"
-                            />
-
-                            <div className="overflow-y-auto pr-2 relative min-h-[100px]">
-                                {loadingSongs && availableSongs.length === 0 ? (
-                                    <div className="py-8 text-center font-bold opacity-70">Завантаження...</div>
-                                ) : availableSongs.length === 0 ? (
-                                    <div className="text-center opacity-70 py-8">Пісень не знайдено.</div>
-                                ) : (
-                                    <>
-                                        {availableSongs.map(song => (
-                                            <button
-                                                key={song.id}
-                                                onClick={() => selectSong(song.id)}
-                                                className={`mb-2 w-full text-left rounded-lg border-2 p-3 transition ${
-                                                    song.id === songId
-                                                        ? 'border-black bg-black text-white dark:border-white dark:bg-white dark:text-black'
-                                                        : 'border-black/20 bg-white hover:border-black dark:border-white/20 dark:bg-black dark:hover:border-white'
-                                                }`}
-                                            >
-                                                <div className="font-black text-lg">{song.title}</div>
-                                                <div className="text-sm font-bold opacity-80">{song.artist}</div>
-                                            </button>
-                                        ))}
-                                    </>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                )}
 
                 {showQr && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">

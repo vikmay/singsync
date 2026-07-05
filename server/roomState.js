@@ -33,10 +33,20 @@ function getRoomStateSnapshot(roomId) {
 }
 
 function setLeader(roomId, leaderId) {
+    const clearedRoomIds = [];
+    if (leaderId) {
+        for (const [key, state] of rooms.entries()) {
+            if (key !== roomId && state.leaderId === leaderId) {
+                state.leaderId = '';
+                clearedRoomIds.push(key);
+            }
+        }
+    }
+
     const room = getOrCreateRoom(roomId);
     room.leaderId = leaderId;
     room.timestamp = Date.now();
-    return room;
+    return { room, clearedRoomIds };
 }
 
 function setSong(roomId, songId) {

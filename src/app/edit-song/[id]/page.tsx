@@ -41,6 +41,7 @@ export default function EditSongPage() {
     const [showChords, setShowChords] = useState(true);
     const [isEditingText, setIsEditingText] = useState(false);
     const [fullscreen, setFullscreen] = useState(false);
+    const [fullscreenSupported, setFullscreenSupported] = useState(true);
 
     // Reset isEditingText when switching modes
     useEffect(() => {
@@ -53,6 +54,9 @@ export default function EditSongPage() {
         };
         handleFullscreenChange();
         document.addEventListener('fullscreenchange', handleFullscreenChange);
+
+        setFullscreenSupported(!!(document.documentElement as any).requestFullscreen || !!(document.documentElement as any).webkitRequestFullscreen);
+
         return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
     }, []);
 
@@ -215,22 +219,24 @@ export default function EditSongPage() {
                                     Вставте текст з акордами. Ми розпізнаємо їх автоматично.
                                 </p>
                             </div>
-                            <button
-                                type="button"
-                                onClick={toggleFullscreen}
-                                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border-2 border-black bg-white text-lg font-black transition active:translate-x-[1px] active:translate-y-[1px] dark:border-white dark:bg-black dark:text-white"
-                                title="Повний екран"
-                            >
-                                {fullscreen ?
-                                    <svg viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current stroke-2">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 9h-6V3 M15 9l7-7 M3 9h6V3 M9 9L2 2 M21 15h-6v6 M15 15l7 7 M3 15h6v6 M9 15l-7 7" />
-                                    </svg>
-                                :
-                                    <svg viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current stroke-2">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 3h6v6 M21 3l-7 7 M9 3H3v6 M3 3l7 7 M15 21h6v-6 M21 21l-7-7 M9 21H3v-6 M3 21l7-7" />
-                                    </svg>
-                                }
-                            </button>
+                            {fullscreenSupported && (
+                                <button
+                                    type="button"
+                                    onClick={toggleFullscreen}
+                                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border-2 border-black bg-white text-lg font-black transition active:translate-x-[1px] active:translate-y-[1px] dark:border-white dark:bg-black dark:text-white"
+                                    title="Повний екран"
+                                >
+                                    {fullscreen ?
+                                        <svg viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current stroke-2">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M21 9h-6V3 M15 9l7-7 M3 9h6V3 M9 9L2 2 M21 15h-6v6 M15 15l7 7 M3 15h6v6 M9 15l-7 7" />
+                                        </svg>
+                                    :
+                                        <svg viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current stroke-2">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 3h6v6 M21 3l-7 7 M9 3H3v6 M3 3l7 7 M15 21h6v-6 M21 21l-7-7 M9 21H3v-6 M3 21l7-7" />
+                                        </svg>
+                                    }
+                                </button>
+                            )}
                         </header>
 
                         {error ?

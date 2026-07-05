@@ -273,8 +273,17 @@ async function main() {
                     createRoom({ roomId, songId: Number(songId), leaderId });
 
                     // Seed in-memory state so first socket join has consistent data
-                    setLeader(roomId, leaderId);
+                    const { clearedRoomIds } = setLeader(roomId, leaderId);
                     setSong(roomId, Number(songId));
+
+                    // Notify other rooms that they lost this leader
+                    for (const clearedId of clearedRoomIds) {
+                        io.to(clearedId).emit("leader_change", {
+                            roomId: clearedId,
+                            leaderId: "",
+                            timestamp: Date.now(),
+                        });
+                    }
 
                     res.json({ ok: true, roomId, songId: Number(songId), leaderId });
                 } catch (e) {
@@ -286,7 +295,7 @@ async function main() {
             app.post("/api/room/:roomId/propose", (req, res) => {
                 try {
                     const roomId = req.params.roomId;
-                    const { songId, songTitle, artist } = req.body || {};
+                    const { songId, songTitle, artist, userId } = req.body || {};
 
                     if (!songId || !songTitle) {
                         return res.status(400).json({ error: "Missing song info" });
@@ -295,6 +304,17 @@ async function main() {
                     const snapshot = getRoomStateSnapshot(roomId);
                     if (!snapshot || !snapshot.leaderId) {
                         return res.status(404).json({ error: "У кімнаті ще немає ведучого - пропозиція не надіслана!" });
+                    }
+
+                    if (userId === snapshot.leaderId) {
+                        // Якщо це ведучий, то одразу змінюємо пісню замість пропозиції
+                        setSong(roomId, Number(songId));
+                        io.to(roomId).emit("song_change", {
+                            roomId,
+                            songId: Number(songId),
+                            timestamp: Date.now(),
+                        });
+                        return res.json({ ok: true, changed: true });
                     }
 
                     const proposal = {
@@ -308,7 +328,7 @@ async function main() {
 
                     io.to(roomId).emit("song_proposed", proposal);
 
-                    res.json({ ok: true });
+                    res.json({ ok: true, proposed: true });
                 } catch (e) {
                     res.status(500).json({ error: "Failed to propose song" });
                 }

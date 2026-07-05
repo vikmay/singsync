@@ -580,13 +580,6 @@ export default function RoomPage() {
 
                 rafRef.current = requestAnimationFrame(step);
             }
-        } else {
-            // leader: snap (so they feel control)
-            if (rafRef.current) cancelAnimationFrame(rafRef.current);
-            const delta = Math.abs(el.scrollTop - targetTop);
-            if (delta > 50) {
-                el.scrollTop = targetTop;
-            }
         }
     }, [scrollTarget, isLeader, speed]);
 

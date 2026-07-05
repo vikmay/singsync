@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ParsedLine, parseRawSong, ChordPlacement, parsedLinesToText } from '@/lib/chordParser';
 import { transposeChord, transposeLineChords } from '@/lib/transpose';
+import { showToast } from '@/lib/toast';
+import { showConfirm, showPrompt } from '@/lib/dialog';
 
 export default function VisualChordEditor({
     rawLines,
@@ -28,7 +30,7 @@ export default function VisualChordEditor({
         onChange(parsedLinesToText(newLines));
     };
 
-    const addChord = (lineIndex: number, charIndex: number) => {
+    const addChord = async (lineIndex: number, charIndex: number) => {
         const line = lines[lineIndex];
         const placements = line.placements || [];
         const existingIdx = placements.findIndex(p => p.i === charIndex);
@@ -38,8 +40,8 @@ export default function VisualChordEditor({
             return;
         }
 
-        const chord = prompt('Введіть акорд (напр. Am, C#m):');
-        if (!chord) return;
+        const chord = await showPrompt('Введіть акорд (напр. Am, C#m):');
+        if (chord === null || chord.trim() === '') return;
         
         const newLines = [...lines];
         const newPlacements = [...placements, { i: charIndex, c: chord }];
@@ -62,21 +64,18 @@ export default function VisualChordEditor({
         onChange(parsedLinesToText(newLines));
     };
 
-    const editChord = (lineIndex: number, placementIndex: number) => {
+    const editChord = async (lineIndex: number, placementIndex: number) => {
+        const chord = await showPrompt('Редагувати акорд (залиште пустим щоб видалити):', lines[lineIndex].placements![placementIndex].c);
+        if (chord === null) return;
+        
         const newLines = [...lines];
         const line = newLines[lineIndex];
-        if (!line.placements) return;
-
-        const placements = [...line.placements];
-        const p = placements[placementIndex];
-        
-        const chord = prompt('Редагувати акорд (залиште пустим щоб видалити):', p.c);
-        if (chord === null) return;
+        const placements = [...line.placements!];
         
         if (chord.trim() === '') {
             placements.splice(placementIndex, 1);
         } else {
-            placements[placementIndex] = { ...p, c: chord.trim() };
+            placements[placementIndex] = { ...placements[placementIndex], c: chord.trim() };
         }
         
         newLines[lineIndex] = { ...line, placements };
@@ -105,6 +104,24 @@ export default function VisualChordEditor({
     const copyBlock = (block: BlockInfo) => {
         const placementsArr = block.lines.map(l => l.placements ? [...l.placements] : []);
         setCopiedBlock(placementsArr);
+        showToast('Акорди блоку скопійовано!');
+    };
+
+    const clearBlock = async (block: BlockInfo) => {
+        if (!(await showConfirm('Ви впевнені, що хочете очистити всі акорди в цьому блоці?'))) return;
+        const newLines = [...lines];
+        for (let i = 0; i < block.lines.length; i++) {
+            const lineIdx = block.startIdx + i;
+            newLines[lineIdx] = { ...newLines[lineIdx], placements: [] };
+        }
+        setLines(newLines);
+        onChange(parsedLinesToText(newLines));
+    };
+
+    const copyBlockText = (block: BlockInfo) => {
+        const pureText = block.lines.map(l => l.text).join('\n');
+        navigator.clipboard.writeText(pureText);
+        showToast('Чистий текст блоку скопійовано в буфер обміну!');
     };
 
     const pasteBlock = (block: BlockInfo) => {
@@ -279,23 +296,49 @@ export default function VisualChordEditor({
                 const isBlockStart = blocks.find(b => b.startIdx === lineIndex);
                 
                 const blockHeader = isBlockStart ? (
-                    <div className="flex flex-wrap items-center gap-2 mb-2 mt-4 pt-4 border-t-2 border-black/10 dark:border-white/10 w-full" style={lineIndex === 0 ? { borderTop: 'none', marginTop: 0, paddingTop: 0 } : {}}>
-                        <span className="text-xs font-bold opacity-50 uppercase tracking-widest">
+                    <div className="flex flex-nowrap items-center gap-1.5 mb-6 mt-8 pt-4 border-t-2 border-black/10 dark:border-white/10 w-full overflow-x-auto scrollbar-hide" style={lineIndex === 0 ? { borderTop: 'none', marginTop: 0, paddingTop: 0 } : {}}>
+                        <span className="text-xs font-bold opacity-50 uppercase tracking-widest whitespace-nowrap mr-1 shrink-0">
                             Блок {blocks.indexOf(isBlockStart) + 1}
                         </span>
-                        <button
-                            onClick={() => copyBlock(isBlockStart)}
-                            className="text-xs bg-black/5 dark:bg-white/10 hover:bg-black/10 px-2 py-1 rounded transition"
-                        >
-                            Копіювати акорди
-                        </button>
-                        {copiedBlock && (
+                        
+                        <div className="flex bg-black/5 dark:bg-white/10 rounded-md overflow-hidden shrink-0">
                             <button
-                                onClick={() => pasteBlock(isBlockStart)}
-                                className="text-xs bg-blue-500/10 text-blue-700 dark:bg-blue-400/20 dark:text-blue-400 hover:bg-blue-500/20 px-2 py-1 rounded transition font-bold"
+                                onClick={() => copyBlock(isBlockStart)}
+                                title="Скопіювати акорди цього блоку"
+                                className="flex items-center gap-1.5 hover:bg-black/10 dark:hover:bg-white/20 px-2 py-1.5 transition"
                             >
-                                Вставити сюди
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 opacity-70"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                                <span className="text-[10px] font-bold uppercase tracking-wider">Акорди</span>
                             </button>
+                            {copiedBlock && (
+                                <button
+                                    onClick={() => pasteBlock(isBlockStart)}
+                                    title="Вставити скопійовані акорди"
+                                    className="flex items-center bg-blue-500/10 text-blue-700 dark:bg-blue-400/20 dark:text-blue-400 hover:bg-blue-500/20 px-2.5 py-1.5 transition border-l border-black/10 dark:border-white/10"
+                                >
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
+                                </button>
+                            )}
+                            <button
+                                onClick={() => clearBlock(isBlockStart)}
+                                title="Очистити всі акорди в блоці"
+                                className="flex items-center justify-center bg-red-500/10 text-red-700 dark:bg-red-400/20 dark:text-red-400 hover:bg-red-500/20 px-2 py-1.5 transition border-l border-black/10 dark:border-white/10"
+                            >
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                            </button>
+                        </div>
+
+                        {!showChords && (
+                            <div className="ml-auto flex shrink-0 gap-1.5">
+                                <button
+                                    onClick={() => copyBlockText(isBlockStart)}
+                                    title="Скопіювати чистий текст блоку"
+                                    className="flex items-center gap-1.5 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 px-2 py-1.5 rounded-md transition"
+                                >
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 opacity-70"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                                    <span className="text-[10px] font-bold uppercase tracking-wider">Текст</span>
+                                </button>
+                            </div>
                         )}
                     </div>
                 ) : null;

@@ -32,7 +32,7 @@ function isChordLine(line: string): boolean {
 }
 
 export function parseRawSong(rawText: string): ParsedLine[] {
-    const lines = rawText.split('\n').map((l) => l.trimEnd()); // keep leading spaces for chords alignment if needed, but for MVP we center anyway.
+    const lines = rawText.split('\n');
     const result: ParsedLine[] = [];
 
     let pendingChords = '';
@@ -100,7 +100,7 @@ export function parseRawSong(rawText: string): ParsedLine[] {
                     placements.push({ i: m.index || 0, c: m[0] });
                 }
             }
-            result.push({ chords: pendingChords.trim(), text: line.trimEnd(), placements });
+            result.push({ chords: pendingChords.trim(), text: line, placements });
             pendingChords = '';
         }
     }
@@ -161,4 +161,42 @@ export function parsedLinesToText(lines: ParsedLine[]): string {
         }
         return chordLine + '\n' + line.text;
     }).join('\n');
+}
+
+export function mapChordsToNewLines(oldLines: ParsedLine[], newTextOnly: string): string {
+    const newTextLines = newTextOnly.split('\n');
+    const result: ParsedLine[] = newTextLines.map(text => ({ text, chords: '', placements: [] }));
+    const usedNew = new Set<number>();
+    
+    for (const old of oldLines) {
+        if (!old.placements || old.placements.length === 0) continue;
+        
+        let bestMatchIdx = -1;
+        // 1. Exact match
+        for (let i = 0; i < newTextLines.length; i++) {
+            if (!usedNew.has(i) && newTextLines[i] === old.text) {
+                bestMatchIdx = i;
+                break;
+            }
+        }
+        
+        // 2. Substring match (if text was modified slightly)
+        if (bestMatchIdx === -1) {
+             for (let i = 0; i < newTextLines.length; i++) {
+                 if (!usedNew.has(i) && newTextLines[i].trim() !== '' && old.text.trim() !== '') {
+                     if (newTextLines[i].includes(old.text.trim()) || old.text.includes(newTextLines[i].trim())) {
+                         bestMatchIdx = i;
+                         break;
+                     }
+                 }
+             }
+        }
+        
+        if (bestMatchIdx !== -1) {
+            result[bestMatchIdx].placements = old.placements;
+            usedNew.add(bestMatchIdx);
+        }
+    }
+    
+    return parsedLinesToText(result);
 }

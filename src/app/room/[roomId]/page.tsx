@@ -3,9 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import type { SongContentV1 } from '@/types/song';
 import { transposeLineChords } from '@/lib/transpose';
 import { getUserId } from '@/lib/user';
+import { showToast } from '@/lib/toast';
+import { showPrompt } from '@/lib/dialog';
 
 type ScrollPosition = { lineIndex: number; offsetPercent: number };
 
@@ -109,15 +112,48 @@ function LineBlock({ line, transposeDelta, fontScale, showChords }: { line: Line
     const segments: { chord: string; text: string }[] = [];
     
     if (placements.length > 0) {
-        const sorted = [...placements].sort((a, b) => a.i - b.i);
-        if (sorted[0].i > 0) {
-            segments.push({ chord: '', text: line.text.slice(0, sorted[0].i) });
-        }
-        for (let j = 0; j < sorted.length; j++) {
-            const p = sorted[j];
-            const nextP = sorted[j + 1];
-            const textSlice = line.text.slice(p.i, nextP ? nextP.i : undefined);
-            segments.push({ chord: p.c, text: textSlice });
+        const sortedPlacements = [...placements].sort((a, b) => a.i - b.i);
+        const trailingMatch = line.text.match(/ +$/);
+        const trailingSpacesLen = trailingMatch ? trailingMatch[0].length : 0;
+
+        if (sortedPlacements.length > 0) {
+            if (sortedPlacements[0].i > 0) {
+                segments.push({ chord: '', text: line.text.slice(0, sortedPlacements[0].i) });
+            }
+            for (let j = 0; j < sortedPlacements.length; j++) {
+                const p = sortedPlacements[j];
+                const nextP = sortedPlacements[j + 1];
+
+                let endI = nextP ? nextP.i : undefined;
+                if (!nextP) {
+                    if (p.i < line.text.length - trailingSpacesLen) {
+                        endI = line.text.length - trailingSpacesLen;
+                    } else {
+                        endI = undefined;
+                    }
+                }
+
+                const textSlice = line.text.slice(p.i, endI);
+                segments.push({ chord: p.c, text: textSlice });
+            }
+
+            // trailing spaces segment
+            let currentEnd = 0;
+            if (sortedPlacements.length > 0) {
+                const lastP = sortedPlacements[sortedPlacements.length - 1];
+                let lastEnd = lastP.i;
+                if (lastEnd < line.text.length - trailingSpacesLen) {
+                    lastEnd = line.text.length - trailingSpacesLen;
+                } else {
+                    lastEnd = line.text.length;
+                }
+                currentEnd = lastEnd;
+            }
+            
+            if (currentEnd < line.text.length) {
+                segments.push({ chord: '', text: line.text.slice(currentEnd) });
+            }
+
         }
     } else {
         segments.push({ chord: line.chords?.trim() || '', text: line.text });
@@ -125,17 +161,17 @@ function LineBlock({ line, transposeDelta, fontScale, showChords }: { line: Line
 
     return (
         <div
-            className="px-2 py-2 flex flex-wrap items-end justify-center shadow-[inset_2px_0_0_rgba(0,0,0,0.3)] dark:shadow-[inset_2px_0_0_rgba(255,255,255,0.2)]"
-            style={{ minHeight: '2em' }}
+            className="px-2 py-2 block text-center break-words shadow-[inset_2px_0_0_rgba(0,0,0,0.3)] dark:shadow-[inset_2px_0_0_rgba(255,255,255,0.2)]"
+            style={{ minHeight: showChords ? '2.5em' : '1.5em' }}
         >
             {segments.map((seg, idx) => (
-                <span key={idx} className="inline-flex flex-col items-start max-w-full">
+                <span key={idx} className="relative inline">
                     {showChords && (
-                        <span className="font-black leading-tight text-blue-700 dark:text-blue-400 whitespace-pre flex items-center" style={{ fontSize: `${18 * fontScale}px`, minHeight: '1.2em' }}>
+                        <span className="absolute bottom-full left-0 font-black leading-tight text-blue-700 dark:text-blue-400 whitespace-pre flex items-center justify-center z-10" style={{ fontSize: `${18 * fontScale}px` }}>
                             <span className="text-center min-w-[1ch]">{seg.chord ? transposeLineChords(seg.chord, transposeDelta) : ''}</span>
                         </span>
                     )}
-                    <span className="font-black leading-tight text-black dark:text-white whitespace-pre-wrap break-words max-w-full" style={{ fontSize: `${28 * fontScale}px`, minHeight: '1.2em' }}>
+                    <span className={`font-black text-black dark:text-white ${seg.text.trim() === '' ? 'whitespace-pre' : 'whitespace-pre-wrap'}`} style={{ fontSize: `${28 * fontScale}px`, lineHeight: showChords ? '1.8' : '1.2' }}>
                         {seg.text}
                     </span>
                 </span>
@@ -231,6 +267,15 @@ export default function RoomPage() {
 
     const [fullscreen, setFullscreen] = useState(false);
 
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            setFullscreen(!!document.fullscreenElement);
+        };
+        handleFullscreenChange();
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    }, []);
+
     const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
     const [qrUrl, setQrUrl] = useState<string | null>(null);
     const [qrLoading, setQrLoading] = useState(false);
@@ -249,14 +294,14 @@ export default function RoomPage() {
 
     const [adminClicks, setAdminClicks] = useState(0);
 
-    function handleAdminClick() {
+    async function handleAdminClick() {
         const newCount = adminClicks + 1;
         if (newCount >= 10) {
             setAdminClicks(0);
-            const pwd = prompt("Введіть пароль адміністратора:");
+            const pwd = await showPrompt("Введіть пароль адміністратора:");
             if (pwd) {
                 localStorage.setItem("admin_pwd", pwd);
-                alert("Пароль збережено! Тепер у вас є права адміністратора на головному екрані.");
+                showToast("Пароль збережено! Тепер у вас є права адміністратора на головному екрані.");
             }
         } else {
             setAdminClicks(newCount);
@@ -388,7 +433,7 @@ export default function RoomPage() {
             }
         });
         s.on('room_deleted', () => {
-            alert("Ця кімната була видалена.");
+            showToast("Ця кімната була видалена.");
             router.push('/');
         });
 
@@ -414,7 +459,7 @@ export default function RoomPage() {
                 if (cancelled) return;
                 
                 if (res.status === 404) {
-                    alert("Ця кімната більше не існує.");
+                    showToast("Ця кімната більше не існує.");
                     router.push('/');
                     return;
                 }
@@ -692,6 +737,10 @@ export default function RoomPage() {
         let newDelta = transposeDelta + deltaChange;
         if (deltaChange === 0) newDelta = 0; // reset
         
+        if (newDelta > 11) newDelta = 11;
+        if (newDelta < -11) newDelta = -11;
+        if (newDelta === transposeDelta) return;
+
         // optimistic update
         setTransposeDelta(newDelta);
         
@@ -814,7 +863,7 @@ export default function RoomPage() {
             <div className="mx-auto flex h-full w-full max-w-md flex-col px-4 pt-3 pb-0 border-x-2 border-black/5 dark:border-white/5">
                 <header className="mb-2 flex items-start justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-3">
-                        <a
+                        <Link
                             href="/"
                             className="relative h-10 w-10 shrink-0 transition active:translate-x-[1px] active:translate-y-[1px]"
                             title="На головну"
@@ -822,7 +871,7 @@ export default function RoomPage() {
                             <svg viewBox="0 0 24 24" className="absolute inset-0 h-full w-full fill-white stroke-black stroke-2 dark:fill-black dark:stroke-white">
                                 <path strokeLinejoin="round" strokeLinecap="round" d="M12 3 L2 11.5 L5 11.5 L5 21 L19 21 L19 11.5 L22 11.5 Z" />
                             </svg>
-                        </a>
+                        </Link>
                         
                         {socket?.connected && (
                             <button
@@ -880,7 +929,8 @@ export default function RoomPage() {
                                         <button
                                             type="button"
                                             onClick={() => changeTranspose(-1)}
-                                            className="flex h-full w-12 items-center justify-center text-xl transition active:bg-black active:text-white dark:active:bg-white dark:active:text-black rounded-l-md"
+                                            disabled={transposeDelta <= -11}
+                                            className="flex h-full w-12 items-center justify-center text-xl transition active:bg-black active:text-white dark:active:bg-white dark:active:text-black rounded-l-md disabled:opacity-20 disabled:active:bg-transparent disabled:active:text-inherit"
                                         >
                                             -
                                         </button>
@@ -888,7 +938,8 @@ export default function RoomPage() {
                                         <button
                                             type="button"
                                             onClick={() => changeTranspose(1)}
-                                            className="flex h-full w-12 items-center justify-center text-xl transition active:bg-black active:text-white dark:active:bg-white dark:active:text-black rounded-r-md"
+                                            disabled={transposeDelta >= 11}
+                                            className="flex h-full w-12 items-center justify-center text-xl transition active:bg-black active:text-white dark:active:bg-white dark:active:text-black rounded-r-md disabled:opacity-20 disabled:active:bg-transparent disabled:active:text-inherit"
                                         >
                                             +
                                         </button>
@@ -940,7 +991,7 @@ export default function RoomPage() {
                                         url: url,
                                     }).catch(() => {
                                         navigator.clipboard?.writeText(url);
-                                        alert('Посилання скопійовано!');
+                                        showToast('Посилання скопійовано!');
                                     });
                                 } else {
                                     try {
@@ -952,9 +1003,9 @@ export default function RoomPage() {
                                         textArea.select();
                                         document.execCommand('copy');
                                         document.body.removeChild(textArea);
-                                        alert('Посилання скопійовано!');
-                                    } catch (e) {
-                                        alert('Скопіюйте це посилання: ' + url);
+                                        showToast('Посилання скопійовано!');
+                                    } catch (err) {
+                                        showToast('Скопіюйте це посилання: ' + url);
                                     }
                                 }
                             }}

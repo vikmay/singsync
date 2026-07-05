@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { showToast } from '@/lib/toast';
+import { showConfirm } from '@/lib/dialog';
 import { getUserId } from '@/lib/user';
 
 type SongListItem = {
@@ -61,8 +63,8 @@ function ActiveRoomItem({ room, isAdmin, onDelete }: ActiveRoomItemProps) {
         <div className="relative overflow-hidden rounded">
             <div className="absolute right-0 top-0 bottom-0 flex w-20 items-center justify-center bg-red-500">
                 <button
-                    onClick={() => {
-                        if (confirm(`Ви впевнені, що хочете видалити кімнату ${room.roomId}?`)) {
+                    onClick={async () => {
+                        if (await showConfirm(`Ви впевнені, що хочете видалити кімнату ${room.roomId}?`)) {
                             onDelete(room.roomId);
                         } else {
                             setOffset(0);
@@ -90,8 +92,8 @@ function ActiveRoomItem({ room, isAdmin, onDelete }: ActiveRoomItemProps) {
             </div>
             {isAdmin && offset === 0 && (
                  <button
-                 onClick={() => {
-                     if (confirm(`Ви впевнені, що хочете видалити кімнату ${room.roomId}?`)) {
+                 onClick={async () => {
+                     if (await showConfirm(`Ви впевнені, що хочете видалити кімнату ${room.roomId}?`)) {
                          onDelete(room.roomId);
                      }
                  }}
@@ -133,6 +135,33 @@ export default function Home() {
     const [error, setError] = useState<string | null>(null);
     const [isAdmin, setIsAdmin] = useState(false);
     const [proposeModalSong, setProposeModalSong] = useState<SongListItem | null>(null);
+    const [fullscreen, setFullscreen] = useState(false);
+
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            setFullscreen(!!document.fullscreenElement);
+        };
+        handleFullscreenChange(); // Initialize
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    }, []);
+
+    async function toggleFullscreen() {
+        try {
+            if (!document.fullscreenElement) {
+                await document.documentElement.requestFullscreen();
+                setFullscreen(true);
+            } else {
+                await document.exitFullscreen();
+                setFullscreen(false);
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    const [expandedSongId, setExpandedSongId] = useState<number | null>(null);
+    const [previewCache, setPreviewCache] = useState<Record<number, string[]>>({});
 
     type Action = 'down' | 'up' | 'pageDown' | 'pageUp' | 'space';
     const [binding, setBinding] = useState<Record<Action, string>>({
@@ -273,10 +302,10 @@ export default function Home() {
                 fetchActiveRooms();
             } else {
                 const data = await res.json();
-                alert(`Помилка видалення: ${data.error || 'Unknown'}`);
+                showToast(`Помилка видалення: ${data.error || 'Unknown'}`);
             }
         } catch (e) {
-            alert('Помилка з\'єднання');
+            showToast('Помилка з\'єднання');
         }
     }
 
@@ -292,13 +321,13 @@ export default function Home() {
                 }),
             });
             if (res.ok) {
-                alert('Пісню запропоновано в кімнату ' + roomId);
+                showToast('Пісню запропоновано в кімнату ' + roomId);
             } else {
                 const data = await res.json().catch(() => ({}));
-                alert(data.error || 'Помилка при пропонуванні');
+                showToast(data.error || 'Помилка при пропонуванні');
             }
         } catch (e) {
-            alert('Помилка з\'єднання');
+            showToast('Помилка з\'єднання');
         } finally {
             setProposeModalSong(null);
         }
@@ -317,53 +346,72 @@ export default function Home() {
             <div className="mx-auto max-w-xl p-4 pb-12">
                 <header className="mb-5">
                     <div className="flex items-start justify-between gap-3">
-                        <div>
-                            <h1 className="mb-2 text-3xl font-black tracking-tight">
-                                SingSync
-                            </h1>
-                            <p className="text-sm opacity-80">
-                                Спільний перегляд текстів пісень з синхронним
-                                скролом.
-                            </p>
+                        <div className="flex flex-wrap items-start gap-4">
+                            <div>
+                                <h1 className="mb-2 text-3xl font-black tracking-tight">
+                                    SingSync
+                                </h1>
+                                <p className="text-sm opacity-80">
+                                    Спільний перегляд текстів пісень з синхронним
+                                    скролом.
+                                </p>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2 shrink-0">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (songs.length === 0) {
+                                            showToast('Додайте хоча б одну пісню!');
+                                            return;
+                                        }
+                                        createRoomForSong(songs[0].id);
+                                    }}
+                                    className="rounded border-2 border-black bg-black px-3 py-2 text-sm font-black text-white transition active:translate-x-[1px] active:translate-y-[1px] dark:border-white dark:bg-white dark:text-black"
+                                    title="Створити кімнату та стати ведучим"
+                                >
+                                    Створити кімнату
+                                </button>
+                                {isAdmin && (
+                                    <Link
+                                        href="/add-song"
+                                        className="rounded border-2 border-black bg-white px-3 py-2 text-sm font-black text-black transition active:translate-x-[1px] active:translate-y-[1px] dark:border-white dark:bg-black dark:text-white"
+                                        title="Додати пісню"
+                                    >
+                                        Додати пісню
+                                    </Link>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPedalPanel(!showPedalPanel)}
+                                    className={`flex h-10 w-10 items-center justify-center rounded-lg border-2 text-xl transition active:translate-x-[1px] active:translate-y-[1px] ${
+                                        showPedalPanel ? 'border-blue-500 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : 'border-black bg-white dark:border-white dark:bg-black'
+                                    }`}
+                                    title="Налаштування педалі"
+                                >
+                                    <svg viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current stroke-2">
+                                        <polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5" strokeLinecap="round" strokeLinejoin="round" />
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
 
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center shrink-0">
-                            <button
-                                type="button"
-                                onClick={() => setShowPedalPanel(!showPedalPanel)}
-                                className={`flex h-10 w-10 items-center justify-center rounded-lg border-2 text-xl transition active:translate-x-[1px] active:translate-y-[1px] ${
-                                    showPedalPanel ? 'border-blue-500 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : 'border-black bg-white dark:border-white dark:bg-black'
-                                }`}
-                                title="Налаштування педалі"
-                            >
+                        <button
+                            type="button"
+                            onClick={toggleFullscreen}
+                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border-2 border-black bg-white text-lg font-black transition active:translate-x-[1px] active:translate-y-[1px] dark:border-white dark:bg-black dark:text-white"
+                            title="Повний екран"
+                        >
+                            {fullscreen ?
                                 <svg viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current stroke-2">
-                                    <polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5" strokeLinecap="round" strokeLinejoin="round" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 9h-6V3 M15 9l7-7 M3 9h6V3 M9 9L2 2 M21 15h-6v6 M15 15l7 7 M3 15h6v6 M9 15l-7 7" />
                                 </svg>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    if (songs.length === 0) {
-                                        alert('Додайте хоча б одну пісню!');
-                                        return;
-                                    }
-                                    createRoomForSong(songs[0].id);
-                                }}
-                                className="rounded border-2 border-black bg-black px-3 py-2 text-sm font-black text-white transition active:translate-x-[1px] active:translate-y-[1px] dark:border-white dark:bg-white dark:text-black"
-                                title="Створити кімнату та стати ведучим"
-                            >
-                                Створити кімнату
-                            </button>
-                            {isAdmin && (
-                                <a
-                                    href="/add-song"
-                                    className="rounded border-2 border-black bg-white px-3 py-2 text-sm font-black text-black transition active:translate-x-[1px] active:translate-y-[1px] dark:border-white dark:bg-black dark:text-white"
-                                    title="Додати пісню"
-                                >
-                                    Додати пісню
-                                </a>
-                            )}
-                        </div>
+                            :
+                                <svg viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current stroke-2">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 3h6v6 M21 3l-7 7 M9 3H3v6 M3 3l7 7 M15 21h6v-6 M21 21l-7-7 M9 21H3v-6 M3 21l7-7" />
+                                </svg>
+                            }
+                        </button>
                     </div>
                 </header>
 
@@ -454,9 +502,32 @@ export default function Home() {
                     {songs.map((song) => (
                         <article
                             key={song.id}
-                            className="rounded border-2 border-black bg-white p-2.5 sm:p-3 dark:border-white dark:bg-black"
+                            className="rounded border-2 border-black bg-white dark:border-white dark:bg-black overflow-hidden transition-all"
                         >
-                            <div className="flex items-center justify-between gap-2">
+                            <div 
+                                className="flex items-center justify-between gap-2 p-2.5 sm:p-3 cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition"
+                                onClick={() => {
+                                    if (expandedSongId === song.id) {
+                                        setExpandedSongId(null);
+                                    } else {
+                                        setExpandedSongId(song.id);
+                                        if (!previewCache[song.id]) {
+                                            fetch(`/api/song/${song.id}`)
+                                                .then(res => res.json())
+                                                .then(data => {
+                                                    const lines = data.song?.parsedContent?.lines || [];
+                                                    const previewText = lines
+                                                        .map((l: any) => l.text)
+                                                        .filter((t: string) => t.trim().length > 0)
+                                                        .slice(0, 5);
+                                                    if (previewText.length === 0) previewText.push('Немає тексту');
+                                                    setPreviewCache(prev => ({ ...prev, [song.id]: previewText }));
+                                                })
+                                                .catch(() => {});
+                                        }
+                                    }
+                                }}
+                            >
                                 <div className="min-w-0 flex-1">
                                     <h2 className="truncate text-lg sm:text-xl font-black leading-tight">
                                         {song.title}
@@ -470,7 +541,7 @@ export default function Home() {
                                     {activeRooms.length > 0 && (
                                         <button
                                             type="button"
-                                            onClick={() => handleProposeClick(song)}
+                                            onClick={(e) => { e.stopPropagation(); handleProposeClick(song); }}
                                             className="shrink-0 flex items-center justify-center rounded border-2 border-black bg-white w-10 h-10 text-black transition active:translate-x-[1px] active:translate-y-[1px] dark:border-white dark:bg-black dark:text-white"
                                             title="Запропонувати пісню в активну кімнату"
                                         >
@@ -487,6 +558,7 @@ export default function Home() {
                                     {isAdmin && (
                                     <Link
                                         href={`/edit-song/${song.id}`}
+                                        onClick={(e) => e.stopPropagation()}
                                         className="shrink-0 flex items-center justify-center rounded border-2 border-black bg-white w-10 h-10 text-base font-black text-black transition active:translate-x-[1px] active:translate-y-[1px] dark:border-white dark:bg-black dark:text-white"
                                         title="Редагувати пісню"
                                     >
@@ -495,6 +567,19 @@ export default function Home() {
                                 )}
                                 </div>
                             </div>
+                            
+                            {expandedSongId === song.id && (
+                                <div className="border-t-2 border-black/10 dark:border-white/10 p-3 bg-black/5 dark:bg-white/5 text-sm font-medium italic opacity-80">
+                                    {previewCache[song.id] ? (
+                                        <div className="whitespace-pre-wrap leading-tight">
+                                            {previewCache[song.id].join('\n')}
+                                            <div className="mt-1 text-xs opacity-50 not-italic">...</div>
+                                        </div>
+                                    ) : (
+                                        <div>Завантаження...</div>
+                                    )}
+                                </div>
+                            )}
                         </article>
                     ))}
                 </section>

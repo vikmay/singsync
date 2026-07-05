@@ -1,23 +1,44 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import { parseRawSong, parsedLinesToText } from '@/lib/chordParser';
+import { useRouter } from 'next/navigation';
+import { parseRawSong, parsedLinesToText, mapChordsToNewLines } from '@/lib/chordParser';
 import { transposeRawSong } from '@/lib/transpose';
+import { useUndoRedo } from '@/hooks/useUndoRedo';
+import { showToast } from '@/lib/toast';
 import VisualChordEditor from '@/components/VisualChordEditor';
 
 type ApiResponse = { ok?: boolean; error?: string };
 
 export default function AddSongPage() {
+    const router = useRouter();
     const [title, setTitle] = useState('');
     const [artist, setArtist] = useState('');
-    const [rawLines, setRawLines] = useState('');
+    const { state: rawLines, setWithHistory: setRawLines, undo, redo, canUndo, canRedo, resetHistory } = useUndoRedo('');
+    const [transposeOffset, setTransposeOffset] = useState(0);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [isVisualMode, setIsVisualMode] = useState(true);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const cursorRef = useRef<{ start: number, end: number } | null>(null);
     const [defaultFontScale, setDefaultFontScale] = useState(1.0);
     const [showChords, setShowChords] = useState(true);
+    const [isEditingText, setIsEditingText] = useState(false);
     const [fullscreen, setFullscreen] = useState(false);
+
+    // Reset isEditingText when switching modes
+    useEffect(() => {
+        if (showChords) setIsEditingText(false);
+    }, [showChords]);
+
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            setFullscreen(!!document.fullscreenElement);
+        };
+        handleFullscreenChange();
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    }, []);
 
     async function toggleFullscreen() {
         try {
@@ -55,7 +76,8 @@ export default function AddSongPage() {
 
             setTitle(data.title || '');
             setArtist(data.artist || '');
-            setRawLines(data.rawLines || '');
+            resetHistory(data.rawLines || '');
+            setTransposeOffset(0);
             
             // Switch to manual tab to show the result
             setActiveTab('manual');
@@ -66,24 +88,31 @@ export default function AddSongPage() {
         }
     }
 
-    function handleTextOnlyChange(newTextOnly: string) {
+    function handleTextOnlyChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+        const newTextOnly = e.target.value;
+        cursorRef.current = { start: e.target.selectionStart, end: e.target.selectionEnd };
+
         const oldParsed = parseRawSong(rawLines);
-        const newLines = newTextOnly.split('\n');
-        
-        const newParsed = newLines.map((text, i) => {
-            const oldLine = oldParsed[i] || { text: '', chords: '', placements: [] };
-            return {
-                ...oldLine,
-                text
-            };
-        });
-        
-        setRawLines(parsedLinesToText(newParsed));
+        const newRawLines = mapChordsToNewLines(oldParsed, newTextOnly);
+        setRawLines(newRawLines);
     }
+
+    useEffect(() => {
+        if (cursorRef.current && textareaRef.current && !showChords) {
+            textareaRef.current.setSelectionRange(cursorRef.current.start, cursorRef.current.end);
+            cursorRef.current = null;
+        }
+    }, [rawLines, showChords]);
+
+    const copyLyricsOnly = () => {
+        const pureText = parseRawSong(rawLines).map(l => l.text).filter(t => t !== undefined).join('\n');
+        navigator.clipboard.writeText(pureText);
+        showToast('Чистий текст скопійовано в буфер обміну!');
+    };
 
     async function submit() {
         if (!title.trim() || !artist.trim()) {
-            alert('Назва та виконавець обов\'язкові');
+            showToast('Назва та виконавець обов\'язкові');
             return;
         }
 
@@ -108,14 +137,14 @@ export default function AddSongPage() {
 
             const data = (await res.json()) as ApiResponse;
             if (!res.ok) {
-                alert("Помилка від сервера: " + data.error);
-                throw new Error(data.error || 'Failed to add song');
+                showToast("Помилка від сервера: " + data.error);
+                return;
             }
 
-            alert("Пісня успішно додана! Повертаємось на головну...");
-            window.location.href = '/';
+            showToast("Пісня успішно додана! Повертаємось на головну...");
+            router.push('/');
         } catch (e) {
-            alert("Сталась помилка: " + (e instanceof Error ? e.message : String(e)));
+            showToast("Сталась помилка: " + (e instanceof Error ? e.message : String(e)));
             setError(e instanceof Error ? e.message : 'Unknown error');
         } finally {
             setLoading(false);
@@ -124,111 +153,116 @@ export default function AddSongPage() {
 
     return (
         <main className="flex h-[100dvh] flex-col overflow-hidden bg-white text-black dark:bg-black dark:text-white">
-            <div className="mx-auto flex h-full w-full max-w-md flex-col p-4 pb-4 border-x-2 border-black/5 dark:border-white/5">
-                <header className="mb-2 shrink-0 flex items-start justify-between gap-3">
-                    <div>
-                        <h1 className="text-2xl font-black">Додати пісню</h1>
-                        <p className="mt-1 text-xs opacity-80">
-                            Вставте текст з акордами. Ми розпізнаємо їх автоматично.
-                        </p>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={toggleFullscreen}
-                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border-2 border-black bg-white text-lg font-black transition active:translate-x-[1px] active:translate-y-[1px] dark:border-white dark:bg-black dark:text-white"
-                        title="Повний екран"
-                    >
-                        {fullscreen ?
-                            <svg viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current stroke-2">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M21 9h-6V3 M15 9l7-7 M3 9h6V3 M9 9L2 2 M21 15h-6v6 M15 15l7 7 M3 15h6v6 M9 15l-7 7" />
-                            </svg>
-                        :
-                            <svg viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current stroke-2">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 3h6v6 M21 3l-7 7 M9 3H3v6 M3 3l7 7 M15 21h6v-6 M21 21l-7-7 M9 21H3v-6 M3 21l7-7" />
-                            </svg>
-                        }
-                    </button>
-                </header>
+            <div className="mx-auto flex h-full w-full max-w-md flex-col border-x-2 border-black/5 dark:border-white/5 relative">
+                
+                <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide flex flex-col">
+                    <div className="px-4 flex flex-col gap-2 shrink-0 mb-4 pt-4">
+                        <header className="mb-2 shrink-0 flex items-start justify-between gap-3">
+                            <div>
+                                <h1 className="text-2xl font-black">Додати пісню</h1>
+                                <p className="mt-1 text-xs opacity-80">
+                                    Вставте текст з акордами. Ми розпізнаємо їх автоматично.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={toggleFullscreen}
+                                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border-2 border-black bg-white text-lg font-black transition active:translate-x-[1px] active:translate-y-[1px] dark:border-white dark:bg-black dark:text-white"
+                                title="Повний екран"
+                            >
+                                {fullscreen ?
+                                    <svg viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current stroke-2">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 9h-6V3 M15 9l7-7 M3 9h6V3 M9 9L2 2 M21 15h-6v6 M15 15l7 7 M3 15h6v6 M9 15l-7 7" />
+                                    </svg>
+                                :
+                                    <svg viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current stroke-2">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 3h6v6 M21 3l-7 7 M9 3H3v6 M3 3l7 7 M15 21h6v-6 M21 21l-7-7 M9 21H3v-6 M3 21l7-7" />
+                                    </svg>
+                                }
+                            </button>
+                        </header>
 
-                {error ?
-                    <section className="mb-2 shrink-0 rounded border-2 border-red-600 bg-red-50 p-2 text-xs dark:border-red-400 dark:bg-red-950">
-                        {error}
-                    </section>
-                :   null}
+                        {error ?
+                            <section className="mb-2 shrink-0 rounded border-2 border-red-600 bg-red-50 p-2 text-xs dark:border-red-400 dark:bg-red-950">
+                                {error}
+                            </section>
+                        :   null}
 
-                <div className="mb-2 flex overflow-hidden rounded-lg border-2 border-black dark:border-white shrink-0">
-                    <button
-                        type="button"
-                        onClick={() => setActiveTab('link')}
-                        className={`flex-1 px-4 py-2 text-sm font-black transition ${
-                            activeTab === 'link'
-                                ? 'bg-black text-white dark:bg-white dark:text-black'
-                                : 'bg-white text-black hover:bg-black/5 dark:bg-black dark:text-white dark:hover:bg-white/10'
-                        }`}
-                    >
-                        За посиланням
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setActiveTab('manual')}
-                        className={`flex-1 border-l-2 border-black px-4 py-2 text-sm font-black transition dark:border-white ${
-                            activeTab === 'manual'
-                                ? 'bg-black text-white dark:bg-white dark:text-black'
-                                : 'bg-white text-black hover:bg-black/5 dark:bg-black dark:text-white dark:hover:bg-white/10'
-                        }`}
-                    >
-                        Вручну / Редагування
-                    </button>
-                </div>
+                        <div className="mb-2 flex overflow-hidden rounded-lg border-2 border-black dark:border-white shrink-0">
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('link')}
+                                className={`flex-1 px-4 py-2 text-sm font-black transition ${
+                                    activeTab === 'link'
+                                        ? 'bg-black text-white dark:bg-white dark:text-black'
+                                        : 'bg-white text-black hover:bg-black/5 dark:bg-black dark:text-white dark:hover:bg-white/10'
+                                }`}
+                            >
+                                За посиланням
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('manual')}
+                                className={`flex-1 border-l-2 border-black px-4 py-2 text-sm font-black transition dark:border-white ${
+                                    activeTab === 'manual'
+                                        ? 'bg-black text-white dark:bg-white dark:text-black'
+                                        : 'bg-white text-black hover:bg-black/5 dark:bg-black dark:text-white dark:hover:bg-white/10'
+                                }`}
+                            >
+                                Вручну / Редагування
+                            </button>
+                        </div>
 
-                {activeTab === 'link' && (
-                    <div className="flex flex-col gap-2 mb-2 rounded-lg border-2 border-dashed border-black/30 p-2 dark:border-white/30 shrink-0">
-                        <label className="block">
-                            <div className="mb-1 text-xs font-bold">Посилання на пісню з акордами</div>
-                            <input
-                                value={linkUrl}
-                                onChange={(e) => setLinkUrl(e.target.value)}
-                                className="w-full rounded border-2 border-black bg-white px-2 py-1 text-base text-black outline-none dark:border-white dark:bg-black dark:text-white"
-                                placeholder="https://pisennyk.com.ua/..."
-                            />
-                        </label>
-                        <button
-                            type="button"
-                            onClick={parseLink}
-                            disabled={parsingLink || !linkUrl.trim()}
-                            className="w-full rounded border-2 border-black bg-black px-2 py-2 text-center text-sm font-black text-white transition active:translate-x-[1px] active:translate-y-[1px] disabled:opacity-60 dark:border-white dark:bg-white dark:text-black"
-                        >
-                            {parsingLink ? 'Завантажую та паршу...' : 'Завантажити текст'}
-                        </button>
-                        <div className="text-[10px] opacity-70 text-center">
-                            Підтримує більшість сайтів (Pisennyk, Chords.com.ua, Pisni.org.ua, Amdm тощо).
+                        {activeTab === 'link' && (
+                            <div className="flex flex-col gap-2 mb-2 rounded-lg border-2 border-dashed border-black/30 p-2 dark:border-white/30 shrink-0">
+                                <label className="block">
+                                    <div className="mb-1 text-xs font-bold">Посилання на пісню з акордами</div>
+                                    <input
+                                        value={linkUrl}
+                                        onChange={(e) => setLinkUrl(e.target.value)}
+                                        className="w-full rounded border-2 border-black bg-white px-2 py-1 text-base text-black outline-none dark:border-white dark:bg-black dark:text-white"
+                                        placeholder="https://pisennyk.com.ua/..."
+                                    />
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={parseLink}
+                                    disabled={parsingLink || !linkUrl.trim()}
+                                    className="w-full rounded border-2 border-black bg-black px-2 py-2 text-center text-sm font-black text-white transition active:translate-x-[1px] active:translate-y-[1px] disabled:opacity-60 dark:border-white dark:bg-white dark:text-black"
+                                >
+                                    {parsingLink ? 'Завантажую та паршу...' : 'Завантажити текст'}
+                                </button>
+                                <div className="text-[10px] opacity-70 text-center">
+                                    Підтримує більшість сайтів (Pisennyk, Chords.com.ua, Pisni.org.ua, Amdm тощо).
+                                </div>
+                            </div>
+                        )}
+
+                        <div className={`flex flex-col gap-2 shrink-0 transition-opacity ${activeTab !== 'manual' ? 'opacity-50 pointer-events-none' : ''}`}>
+                            <label className="block">
+                                <div className="mb-1 text-xs font-bold">Назва</div>
+                                <input
+                                    value={title}
+                                    onChange={(e) => setTitle(e.target.value)}
+                                    className="w-full rounded border-2 border-black bg-white px-2 py-1 text-base text-black outline-none dark:border-white dark:bg-black dark:text-white"
+                                    placeholder="Назва пісні"
+                                />
+                            </label>
+
+                            <label className="block">
+                                <div className="mb-1 text-xs font-bold">Виконавець</div>
+                                <input
+                                    value={artist}
+                                    onChange={(e) => setArtist(e.target.value)}
+                                    className="w-full rounded border-2 border-black bg-white px-2 py-1 text-base text-black outline-none dark:border-white dark:bg-black dark:text-white"
+                                    placeholder="Artist"
+                                />
+                            </label>
                         </div>
                     </div>
-                )}
 
-                <div className={`flex flex-col gap-2 shrink-0 overflow-y-auto scrollbar-hide max-h-[25vh] transition-opacity ${activeTab !== 'manual' ? 'opacity-50 pointer-events-none' : ''}`}>
-                    <label className="block">
-                        <div className="mb-1 text-xs font-bold">Назва</div>
-                        <input
-                            value={title}
-                            onChange={(e) => setTitle(e.target.value)}
-                            className="w-full rounded border-2 border-black bg-white px-2 py-1 text-base text-black outline-none dark:border-white dark:bg-black dark:text-white"
-                            placeholder="Назва пісні"
-                        />
-                    </label>
-
-                    <label className="block">
-                        <div className="mb-1 text-xs font-bold">Виконавець</div>
-                        <input
-                            value={artist}
-                            onChange={(e) => setArtist(e.target.value)}
-                            className="w-full rounded border-2 border-black bg-white px-2 py-1 text-base text-black outline-none dark:border-white dark:bg-black dark:text-white"
-                            placeholder="Artist"
-                        />
-                    </label>
-
-                    <div className="flex items-center justify-between w-full">
-                        <div className="flex-1 flex flex-col items-start">
+                    <div className={`sticky top-0 z-10 bg-white dark:bg-black px-4 py-3 border-b-2 border-black/10 dark:border-white/10 flex items-center justify-between w-full shadow-sm transition-opacity ${activeTab !== 'manual' ? 'opacity-50 pointer-events-none' : ''}`}>
+                        <div className="flex-1 flex items-center justify-start gap-4">
                             <div className="flex flex-col items-center">
                                 <div className="mb-1 text-xs font-bold text-center">Шрифт</div>
                                 <div className="flex items-center gap-2">
@@ -248,6 +282,30 @@ export default function AddSongPage() {
                                         title="Збільшити"
                                     >
                                         +
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div className="flex flex-col items-center">
+                                <span className="text-xs font-bold uppercase tracking-wider opacity-70 mb-1">Історія</span>
+                                <div className="flex bg-black/5 dark:bg-white/10 rounded-md overflow-hidden shrink-0">
+                                    <button
+                                        type="button"
+                                        onClick={undo}
+                                        disabled={!canUndo}
+                                        title="Відмінити (Ctrl+Z)"
+                                        className={`flex h-8 w-8 items-center justify-center transition border-r border-black/10 dark:border-white/10 ${!canUndo ? 'opacity-30 cursor-not-allowed' : 'hover:bg-black/10 dark:hover:bg-white/20'}`}
+                                    >
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4"><path d="M3 7v6h6"></path><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3l-3 2.7"></path></svg>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={redo}
+                                        disabled={!canRedo}
+                                        title="Повторити (Ctrl+Y)"
+                                        className={`flex h-8 w-8 items-center justify-center transition ${!canRedo ? 'opacity-30 cursor-not-allowed' : 'hover:bg-black/10 dark:hover:bg-white/20'}`}
+                                    >
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4"><path d="M21 7v6h-6"></path><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"></path></svg>
                                     </button>
                                 </div>
                             </div>
@@ -283,15 +341,27 @@ export default function AddSongPage() {
                                 <div className="flex items-center justify-end gap-2 shrink-0">
                                     <button 
                                         type="button"
-                                        onClick={() => setRawLines(transposeRawSong(rawLines, -1))}
-                                        className="flex h-8 px-2 shrink-0 items-center justify-center rounded-lg border-2 border-black/20 bg-black/5 text-sm font-black transition active:bg-black/20 dark:border-white/20 dark:bg-white/10 dark:active:bg-white/20"
+                                        onClick={() => {
+                                            if (transposeOffset > -11) {
+                                                setRawLines(transposeRawSong(rawLines, -1));
+                                                setTransposeOffset(t => t - 1);
+                                            }
+                                        }}
+                                        disabled={transposeOffset <= -11}
+                                        className="flex h-8 px-2 shrink-0 items-center justify-center rounded-lg border-2 border-black/20 bg-black/5 text-sm font-black transition active:bg-black/20 disabled:opacity-20 disabled:active:bg-black/5 dark:border-white/20 dark:bg-white/10 dark:active:bg-white/20 dark:disabled:active:bg-white/10"
                                     >
                                         -1
                                     </button>
                                     <button 
                                         type="button"
-                                        onClick={() => setRawLines(transposeRawSong(rawLines, 1))}
-                                        className="flex h-8 px-2 shrink-0 items-center justify-center rounded-lg border-2 border-black/20 bg-black/5 text-sm font-black transition active:bg-black/20 dark:border-white/20 dark:bg-white/10 dark:active:bg-white/20"
+                                        onClick={() => {
+                                            if (transposeOffset < 11) {
+                                                setRawLines(transposeRawSong(rawLines, 1));
+                                                setTransposeOffset(t => t + 1);
+                                            }
+                                        }}
+                                        disabled={transposeOffset >= 11}
+                                        className="flex h-8 px-2 shrink-0 items-center justify-center rounded-lg border-2 border-black/20 bg-black/5 text-sm font-black transition active:bg-black/20 disabled:opacity-20 disabled:active:bg-black/5 dark:border-white/20 dark:bg-white/10 dark:active:bg-white/20 dark:disabled:active:bg-white/10"
                                     >
                                         +1
                                     </button>
@@ -299,41 +369,59 @@ export default function AddSongPage() {
                             </div>
                         </div>
                     </div>
+
+                    <div className={`flex flex-col flex-1 min-h-[calc(100dvh-150px)] px-4 pt-4 pb-4 transition-opacity ${activeTab !== 'manual' ? 'opacity-50 pointer-events-none' : ''}`}>
+                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 shrink-0">
+                            <span className="text-sm font-bold">{showChords ? 'Редактор акордів' : 'Чистий текст (вигляд для співака)'}</span>
+                            <div className="flex items-center gap-2">
+                                {!showChords && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsEditingText(!isEditingText)}
+                                        className={`text-xs font-bold px-3 py-1 rounded transition ${isEditingText ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'}`}
+                                    >
+                                        {isEditingText ? 'Готово (зберегти текст)' : 'Редагувати текст'}
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={copyLyricsOnly}
+                                    className="text-xs font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800/50 px-3 py-1 rounded transition"
+                                >
+                                    Скопіювати весь текст
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div className="flex-1">
+                            {showChords ? (
+                                <VisualChordEditor 
+                                    rawLines={rawLines}
+                                    fontScale={defaultFontScale}
+                                    showChords={true}
+                                    onChange={(val) => { setRawLines(val); }}
+                                />
+                            ) : (
+                                <textarea
+                                    ref={textareaRef}
+                                    value={parseRawSong(rawLines).map(l => l.text).filter(t => t !== undefined).join('\n')}
+                                    onChange={handleTextOnlyChange}
+                                    placeholder="Вставте текст пісні сюди..."
+                                    inputMode={isEditingText ? "text" : "none"}
+                                    className={`h-full min-h-[60vh] w-full resize-y rounded border-2 px-2 py-2 text-center outline-none font-sans font-black leading-[1.8] whitespace-pre-wrap break-words overflow-auto transition ${
+                                        isEditingText 
+                                            ? 'border-orange-500 bg-white text-black dark:border-orange-500 dark:bg-black dark:text-white' 
+                                            : 'border-black bg-black/5 text-black dark:border-white dark:bg-white/5 dark:text-white'
+                                    }`}
+                                    style={{ fontSize: `${28 * defaultFontScale}px` }}
+                                    spellCheck={false}
+                                />
+                            )}
+                        </div>
+                    </div>
                 </div>
 
-                <div className={`flex flex-1 flex-col min-h-0 overflow-hidden mt-2 mb-2 border-t-2 border-black/10 pt-2 dark:border-white/10 transition-opacity ${activeTab !== 'manual' ? 'opacity-50 pointer-events-none' : ''}`}>
-                    <div className="mb-2 flex items-center justify-between shrink-0">
-                        <span className="text-sm font-bold">Текст пісні</span>
-                        <button
-                            type="button"
-                            onClick={() => setIsVisualMode(!isVisualMode)}
-                            className="text-xs font-bold underline text-blue-600 dark:text-blue-400"
-                        >
-                            Перемкнути на {isVisualMode ? 'Редактор тексту' : 'Редактор акордів'}
-                        </button>
-                    </div>
-                    
-                    <div className="flex-1 min-h-0 overflow-hidden">
-                        {isVisualMode ? (
-                            <VisualChordEditor 
-                                rawLines={rawLines}
-                                fontScale={defaultFontScale}
-                                showChords={showChords}
-                                onChange={setRawLines}
-                            />
-                        ) : (
-                            <textarea
-                                value={showChords ? rawLines : parseRawSong(rawLines).map(l => l.text).filter(t => t !== undefined).join('\n')}
-                                onChange={(e) => showChords ? setRawLines(e.target.value) : handleTextOnlyChange(e.target.value)}
-                                placeholder={showChords ? "Type your song here..." : "Можете редагувати текст (акорди залишаться збереженими)"}
-                                className={`h-full w-full resize-none rounded border-2 border-black bg-white px-2 py-2 text-center text-black outline-none font-sans font-black leading-tight whitespace-pre-wrap break-words overflow-auto scrollbar-hide dark:border-white dark:bg-black dark:text-white ${!showChords ? 'bg-black/5 dark:bg-white/5' : ''}`}
-                                style={{ fontSize: `${28 * defaultFontScale}px` }}
-                            />
-                        )}
-                    </div>
-                </div>
-
-                <div className="flex gap-2 shrink-0">
+                <div className="flex gap-2 shrink-0 p-4 border-t-2 border-black/10 dark:border-white/10 bg-white dark:bg-black">
                     <button
                         type="button"
                         onClick={submit}

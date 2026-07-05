@@ -223,27 +223,46 @@ export default function RoomPage() {
     const scrollTargetRef = useRef(scrollTarget);
     scrollTargetRef.current = scrollTarget;
 
-    // Wake Lock: prevent screen from turning off using the modern Screen Wake Lock API (requires HTTPS)
+    // Wake Lock: prevent screen from turning off using modern API + fallback to NoSleep.js
     useEffect(() => {
         let wakeLock: any = null;
+        let noSleep: any = null;
 
         const requestWakeLock = async () => {
-            try {
-                if ('wakeLock' in navigator) {
+            // 1. Try modern API first (iOS 16.4+, Chrome, etc)
+            if ('wakeLock' in navigator) {
+                try {
                     wakeLock = await (navigator as any).wakeLock.request('screen');
-                    console.log('Screen Wake Lock enabled');
+                    console.log('Screen Wake Lock API enabled');
                     
                     wakeLock.addEventListener('release', () => {
                         console.log('Screen Wake Lock was released');
                     });
+                    return; // Success! No need for fallback.
+                } catch (err: any) {
+                    console.error(`Wake Lock API error: ${err.name}, ${err.message}`);
+                    // Continue to fallback if it fails
                 }
-            } catch (err: any) {
-                console.error(`Wake Lock error: ${err.name}, ${err.message}`);
+            }
+
+            // 2. Fallback for older devices or in-app browsers (Telegram/Viber)
+            try {
+                if (!noSleep) {
+                    const NoSleepModule = require('nosleep.js');
+                    const NoSleep = NoSleepModule.default || NoSleepModule;
+                    noSleep = new NoSleep();
+                }
+                if (!noSleep.isEnabled) {
+                    noSleep.enable();
+                    console.log('NoSleep fallback enabled (video trick)');
+                }
+            } catch (err) {
+                console.error('Failed to enable NoSleep fallback', err);
             }
         };
 
         const handleVisibilityChange = () => {
-            if (wakeLock !== null && document.visibilityState === 'visible') {
+            if (document.visibilityState === 'visible') {
                 requestWakeLock();
             }
         };
@@ -257,14 +276,14 @@ export default function RoomPage() {
         // Needs user interaction to start initially
         document.addEventListener('click', initWakeLock);
         document.addEventListener('touchstart', initWakeLock);
-        // Automatically re-request if user minimizes browser and comes back
         document.addEventListener('visibilitychange', handleVisibilityChange);
 
         return () => {
             if (wakeLock !== null) {
-                wakeLock.release().then(() => {
-                    wakeLock = null;
-                });
+                wakeLock.release().catch(() => {});
+            }
+            if (noSleep && noSleep.isEnabled) {
+                noSleep.disable();
             }
             document.removeEventListener('click', initWakeLock);
             document.removeEventListener('touchstart', initWakeLock);

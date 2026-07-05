@@ -1,19 +1,20 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 export default function GlobalWakeLock() {
-    useEffect(() => {
-        let wakeLock: any = null;
+    const wakeLockRef = useRef<any>(null);
 
+    useEffect(() => {
         const requestWakeLock = async () => {
-            if ('wakeLock' in navigator) {
+            if ('wakeLock' in navigator && wakeLockRef.current === null && document.visibilityState === 'visible') {
                 try {
-                    wakeLock = await (navigator as any).wakeLock.request('screen');
+                    wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
                     console.log('Screen Wake Lock API enabled');
                     
-                    wakeLock.addEventListener('release', () => {
+                    wakeLockRef.current.addEventListener('release', () => {
                         console.log('Screen Wake Lock was released');
+                        wakeLockRef.current = null;
                     });
                 } catch (err: any) {
                     console.error(`Wake Lock API error: ${err.name}, ${err.message}`);
@@ -21,32 +22,31 @@ export default function GlobalWakeLock() {
             }
         };
 
+        const handleInteraction = () => {
+            requestWakeLock();
+        };
+
         const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible' && wakeLock === null) {
+            if (document.visibilityState === 'visible') {
                 requestWakeLock();
             }
         };
 
-        const initWakeLock = () => {
-            requestWakeLock();
-            document.removeEventListener('click', initWakeLock);
-            document.removeEventListener('touchstart', initWakeLock);
-        };
-
-        // Needs user interaction to start initially
-        document.addEventListener('click', initWakeLock);
-        document.addEventListener('touchstart', initWakeLock);
+        // Будь-який клік або тап в додатку буде намагатися увімкнути WakeLock, якщо він ще не увімкнений
+        document.addEventListener('click', handleInteraction);
+        document.addEventListener('touchstart', handleInteraction, { passive: true });
         document.addEventListener('visibilitychange', handleVisibilityChange);
 
         return () => {
-            if (wakeLock !== null) {
-                wakeLock.release().catch(() => {});
+            if (wakeLockRef.current !== null) {
+                wakeLockRef.current.release().catch(() => {});
+                wakeLockRef.current = null;
             }
-            document.removeEventListener('click', initWakeLock);
-            document.removeEventListener('touchstart', initWakeLock);
+            document.removeEventListener('click', handleInteraction);
+            document.removeEventListener('touchstart', handleInteraction);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
     }, []);
 
-    return null; // This component doesn't render anything
+    return null;
 }

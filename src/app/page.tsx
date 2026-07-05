@@ -136,6 +136,7 @@ export default function Home() {
     const [isAdmin, setIsAdmin] = useState(false);
     const [proposeModalSong, setProposeModalSong] = useState<SongListItem | null>(null);
     const [fullscreen, setFullscreen] = useState(false);
+    const [fullscreenSupported, setFullscreenSupported] = useState(true);
 
     useEffect(() => {
         const handleFullscreenChange = () => {
@@ -143,6 +144,9 @@ export default function Home() {
         };
         handleFullscreenChange(); // Initialize
         document.addEventListener('fullscreenchange', handleFullscreenChange);
+        
+        setFullscreenSupported(!!(document.documentElement as any).requestFullscreen || !!(document.documentElement as any).webkitRequestFullscreen);
+        
         return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
     }, []);
 
@@ -311,6 +315,7 @@ export default function Home() {
 
     async function proposeSongToRoom(roomId: string, song: SongListItem) {
         try {
+            const userId = getUserId();
             const res = await fetch(`/api/room/${roomId}/propose`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -318,10 +323,17 @@ export default function Home() {
                     songId: song.id,
                     songTitle: song.title,
                     artist: song.artist,
+                    userId: userId,
                 }),
             });
             if (res.ok) {
-                showToast('Пісню запропоновано в кімнату ' + roomId);
+                const data = await res.json();
+                if (data.changed) {
+                    showToast('Пісню змінено!', 'success');
+                    router.push(`/room/${roomId}`);
+                } else {
+                    showToast('Пісню запропоновано в кімнату ' + roomId);
+                }
             } else {
                 const data = await res.json().catch(() => ({}));
                 showToast(data.error || 'Помилка при пропонуванні');
@@ -334,7 +346,12 @@ export default function Home() {
     }
 
     function handleProposeClick(song: SongListItem) {
-        if (activeRooms.length === 1) {
+        const userId = getUserId();
+        const myRoom = activeRooms.find(r => r.leaderId === userId);
+
+        if (myRoom) {
+            proposeSongToRoom(myRoom.roomId, song);
+        } else if (activeRooms.length === 1) {
             proposeSongToRoom(activeRooms[0].roomId, song);
         } else if (activeRooms.length > 1) {
             setProposeModalSong(song);
@@ -396,22 +413,24 @@ export default function Home() {
                             </div>
                         </div>
 
-                        <button
-                            type="button"
-                            onClick={toggleFullscreen}
-                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border-2 border-black bg-white text-lg font-black transition active:translate-x-[1px] active:translate-y-[1px] dark:border-white dark:bg-black dark:text-white"
-                            title="Повний екран"
-                        >
-                            {fullscreen ?
-                                <svg viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current stroke-2">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 9h-6V3 M15 9l7-7 M3 9h6V3 M9 9L2 2 M21 15h-6v6 M15 15l7 7 M3 15h6v6 M9 15l-7 7" />
-                                </svg>
-                            :
-                                <svg viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current stroke-2">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 3h6v6 M21 3l-7 7 M9 3H3v6 M3 3l7 7 M15 21h6v-6 M21 21l-7-7 M9 21H3v-6 M3 21l7-7" />
-                                </svg>
-                            }
-                        </button>
+                        {fullscreenSupported && (
+                            <button
+                                type="button"
+                                onClick={toggleFullscreen}
+                                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border-2 border-black bg-white text-lg font-black transition active:translate-x-[1px] active:translate-y-[1px] dark:border-white dark:bg-black dark:text-white"
+                                title="Повний екран"
+                            >
+                                {fullscreen ?
+                                    <svg viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current stroke-2">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 9h-6V3 M15 9l7-7 M3 9h6V3 M9 9L2 2 M21 15h-6v6 M15 15l7 7 M3 15h6v6 M9 15l-7 7" />
+                                    </svg>
+                                :
+                                    <svg viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current stroke-2">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 3h6v6 M21 3l-7 7 M9 3H3v6 M3 3l7 7 M15 21h6v-6 M21 21l-7-7 M9 21H3v-6 M3 21l7-7" />
+                                    </svg>
+                                }
+                            </button>
+                        )}
                     </div>
                 </header>
 

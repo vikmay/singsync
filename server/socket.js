@@ -58,16 +58,6 @@ function registerSocketHandlers(io, { getRoomStateSnapshot: getSnapshotFromDeps 
 
                 const snapshot = getSnapshot(roomId);
 
-                // Leader selection: first join becomes leader (for MVP).
-                if (!snapshot.leaderId) {
-                    setLeader(roomId, userId);
-                    emitToRoom(roomId, "leader_change", {
-                        roomId,
-                        leaderId: userId,
-                        timestamp: Date.now(),
-                    });
-                }
-
                 const updated = getSnapshot(roomId);
 
                 // Send current state to the joining client.
@@ -204,13 +194,21 @@ function registerSocketHandlers(io, { getRoomStateSnapshot: getSnapshotFromDeps 
                 return;
             }
 
-            setLeader(roomId, nextLeaderId);
+            const { clearedRoomIds } = setLeader(roomId, nextLeaderId);
 
             emitToRoom(roomId, "leader_change", {
                 roomId,
                 leaderId: nextLeaderId,
                 timestamp: payload?.timestamp ?? Date.now(),
             });
+
+            for (const clearedId of clearedRoomIds) {
+                emitToRoom(clearedId, "leader_change", {
+                    roomId: clearedId,
+                    leaderId: "",
+                    timestamp: Date.now(),
+                });
+            }
 
             if (typeof ack === "function") ack({ ok: true });
         });
@@ -226,13 +224,25 @@ function registerSocketHandlers(io, { getRoomStateSnapshot: getSnapshotFromDeps 
                 return;
             }
 
-            setLeader(roomId, userId);
+            const { clearedRoomIds } = setLeader(roomId, userId);
+            
+            const { updateRoomLeader } = require("./sqlite");
+            updateRoomLeader(roomId, userId);
 
             emitToRoom(roomId, "leader_change", {
                 roomId,
                 leaderId: userId,
                 timestamp: Date.now(),
             });
+
+            // Notify other rooms that they lost this leader
+            for (const clearedId of clearedRoomIds) {
+                emitToRoom(clearedId, "leader_change", {
+                    roomId: clearedId,
+                    leaderId: "",
+                    timestamp: Date.now(),
+                });
+            }
 
             if (typeof ack === "function") ack({ ok: true });
         });

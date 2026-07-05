@@ -172,6 +172,12 @@ function createRoom({ roomId, songId, leaderId }) {
     if (!Number.isFinite(sId) || sId <= 0) throw new Error("songId is invalid");
     if (!lId) throw new Error("leaderId is required");
 
+    db.prepare(`
+        UPDATE rooms 
+        SET leader_id = '' 
+        WHERE leader_id = @leader_id
+    `).run({ leader_id: lId });
+
     db.prepare(
         `
       INSERT OR REPLACE INTO rooms (id, song_id, leader_id, created_at)
@@ -180,6 +186,28 @@ function createRoom({ roomId, songId, leaderId }) {
     ).run({ id, song_id: sId, leader_id: lId });
 
     return getRoom(roomId);
+}
+
+function updateRoomLeader(roomId, leaderId) {
+    const id = safeText(roomId);
+    const lId = safeText(leaderId) || ''; // Allow empty string for clearing leader
+    if (!id) return;
+
+    // Спершу забираємо лідерство з інших кімнат цього користувача
+    if (lId) {
+        db.prepare(`
+            UPDATE rooms 
+            SET leader_id = '' 
+            WHERE leader_id = @leader_id
+        `).run({ leader_id: lId });
+    }
+
+    // Встановлюємо нового лідера в потрібну кімнату
+    db.prepare(`
+        UPDATE rooms 
+        SET leader_id = @leader_id 
+        WHERE id = @id
+    `).run({ id, leader_id: lId });
 }
 
 function getRoom(roomId) {
@@ -278,6 +306,7 @@ module.exports = {
     updateSong,
     deleteSong,
     createRoom,
+    updateRoomLeader,
     getRoom,
     deleteRoom,
     listRecentRooms,

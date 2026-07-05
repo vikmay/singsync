@@ -234,6 +234,7 @@ export default function RoomPage() {
                 try {
                     wakeLock = await (navigator as any).wakeLock.request('screen');
                     console.log('Screen Wake Lock API enabled');
+                    showToast('Екран заблоковано (API)', 'success');
                     
                     wakeLock.addEventListener('release', () => {
                         console.log('Screen Wake Lock was released');
@@ -241,8 +242,11 @@ export default function RoomPage() {
                     return; // Success! No need for fallback.
                 } catch (err: any) {
                     console.error(`Wake Lock API error: ${err.name}, ${err.message}`);
+                    showToast(`Помилка API: ${err.message}`, 'error');
                     // Continue to fallback if it fails
                 }
+            } else {
+                showToast('API не підтримується браузером', 'error');
             }
 
             // 2. Fallback for older devices or in-app browsers (Telegram/Viber)
@@ -255,9 +259,11 @@ export default function RoomPage() {
                 if (!noSleep.isEnabled) {
                     noSleep.enable();
                     console.log('NoSleep fallback enabled (video trick)');
+                    showToast('Екран заблоковано (Fallback)', 'success');
                 }
-            } catch (err) {
+            } catch (err: any) {
                 console.error('Failed to enable NoSleep fallback', err);
+                showToast(`Помилка Fallback: ${err.message}`, 'error');
             }
         };
 

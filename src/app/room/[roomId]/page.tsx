@@ -254,6 +254,19 @@ export default function RoomPage() {
     const [showQr, setShowQr] = useState(false);
 
     const [isDetached, setIsDetached] = useState(false);
+    
+    const [showLeaderSuccess, setShowLeaderSuccess] = useState(false);
+    
+    const [leaderRequestCountdown, setLeaderRequestCountdown] = useState<number>(0);
+    const leaderIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const pendingOwnRequestRef = useRef(false);
+
+    useEffect(() => {
+        if (leaderRequestCountdown <= 0 && leaderIntervalRef.current) {
+            clearInterval(leaderIntervalRef.current);
+            leaderIntervalRef.current = null;
+        }
+    }, [leaderRequestCountdown]);
 
     const [proposal, setProposal] = useState<{songId: number, songTitle: string, artist: string} | null>(null);
     const isLeaderRef = useRef(isLeader);
@@ -354,6 +367,33 @@ export default function RoomPage() {
 
         s.on('leader_change', (payload: RoomLeaderChange) => {
             setLeaderId(payload.leaderId);
+            setLeaderRequestCountdown(0); // clear any active UI for transfer
+            
+            if (pendingOwnRequestRef.current) {
+                if (payload.leaderId === getUserId()) {
+                    setShowLeaderSuccess(true);
+                    setTimeout(() => setShowLeaderSuccess(false), 4000);
+                }
+                pendingOwnRequestRef.current = false;
+            }
+        });
+
+        s.on('leader_request', () => {
+            // Only the current leader should see this
+            if (isLeaderRef.current) {
+                setLeaderRequestCountdown(10);
+                if (leaderIntervalRef.current) clearInterval(leaderIntervalRef.current);
+                leaderIntervalRef.current = setInterval(() => {
+                    setLeaderRequestCountdown(prev => prev - 1);
+                }, 1000);
+            }
+        });
+
+        s.on('leader_rejected', () => {
+            if (pendingOwnRequestRef.current) {
+                showToast("Ведучий відхилив ваш запит.");
+                pendingOwnRequestRef.current = false;
+            }
         });
 
         s.on('song_change', (payload: RoomSongChange) => {
@@ -399,6 +439,8 @@ export default function RoomPage() {
             s.removeAllListeners('scroll_update');
             s.removeAllListeners('song_proposed');
             s.removeAllListeners('room_deleted');
+            s.removeAllListeners('leader_request');
+            s.removeAllListeners('leader_rejected');
         };
     }, [socket, router]);
 
@@ -798,8 +840,12 @@ export default function RoomPage() {
                             <button
                                 type="button"
                                 onClick={() => {
-                                    // Always emit take_leadership as a fail-safe sync
-                                    socket.emit('take_leadership', { roomId, userId });
+                                    pendingOwnRequestRef.current = true;
+                                    socket.emit('take_leadership', { roomId, userId }, (ack: { ok: boolean, pending: boolean }) => {
+                                        if (ack.ok && ack.pending) {
+                                            showToast("Запит надіслано ведучому (очікування 10с)...");
+                                        }
+                                    });
                                     if (isLeader) {
                                         handleAdminClick();
                                     }
@@ -1049,6 +1095,17 @@ export default function RoomPage() {
                         onScroll={onNativeScroll}
                         className="flex-1 overflow-y-auto scrollbar-hide overscroll-contain"
                     >
+                        {showLeaderSuccess && (
+                <div className="fixed top-0 left-0 w-full z-[200] flex justify-center animate-in slide-in-from-top fade-in duration-500 pointer-events-none">
+                    <div className="mt-4 flex items-center gap-3 rounded-full bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 px-6 py-3 font-black text-white shadow-[0_0_20px_rgba(234,179,8,0.5)]">
+                        <span className="text-2xl animate-bounce">👑</span>
+                        <span className="text-xl">Ви тепер ведучий!</span>
+                        <span className="text-2xl animate-bounce" style={{animationDelay: '100ms'}}>👑</span>
+                    </div>
+                </div>
+            )}
+
+            <div className={`relative flex flex-col items-center min-h-[100dvh] pb-12 select-none font-sans font-medium touch-manipulation overflow-x-hidden ${isDetached ? 'opacity-80' : ''}`}>
                         <div className="flex flex-col w-full font-sans pb-[50vh] border-2 border-transparent" style={{ fontSize: `${28 * fontScale}px` }}>
                             {lines.length === 0 ?
                                 <div className="p-3 text-sm opacity-80">
@@ -1060,6 +1117,7 @@ export default function RoomPage() {
                                 <LineBlock key={idx} line={line} transposeDelta={transposeDelta} fontScale={fontScale} showChords={showChords} />
                             ))}
                         </div>
+                    </div>
                     </div>
                 </section>
 
@@ -1131,6 +1189,31 @@ export default function RoomPage() {
                     </div>
                 )}
             </div>
+
+            {leaderRequestCountdown > 0 && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
+                    <div className="w-full max-w-sm rounded-xl border-4 border-orange-500 bg-white p-6 shadow-2xl flex flex-col text-center dark:bg-black">
+                        <div className="text-6xl mb-4">👑</div>
+                        <h2 className="mb-2 text-2xl font-black text-black dark:text-white">Увага!</h2>
+                        <p className="mb-6 text-lg font-bold text-black dark:text-white">
+                            Хтось хоче стати ведучим!<br/>
+                            У вас є <span className="text-orange-500 text-2xl font-black">{leaderRequestCountdown}</span> сек, щоб втримати корону.
+                        </p>
+                        
+                        <button 
+                            onClick={() => {
+                                setLeaderRequestCountdown(0);
+                                if (socket && roomId) {
+                                    socket.emit('reject_leadership', { roomId, userId });
+                                }
+                            }}
+                            className="w-full rounded-xl border-4 border-orange-500 bg-orange-100 p-4 text-xl font-black text-orange-900 transition active:translate-x-[2px] active:translate-y-[2px] dark:border-orange-500 dark:bg-orange-900 dark:text-orange-100"
+                        >
+                            🛡️ Втримати корону
+                        </button>
+                    </div>
+                </div>
+            )}
         </main>
     );
 }

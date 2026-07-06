@@ -119,7 +119,6 @@ export default function Home() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isAdmin, setIsAdmin] = useState(false);
-    const [proposeModalSong, setProposeModalSong] = useState<SongListItem | null>(null);
     const [fullscreen, setFullscreen] = useState(false);
     const [fullscreenSupported, setFullscreenSupported] = useState(true);
     const [lastRoomId, setLastRoomId] = useState<string | null>(null);
@@ -290,7 +289,7 @@ export default function Home() {
                     showToast('Пісню змінено!');
                     router.push(`/room/${roomId}`);
                 } else {
-                    showToast('Пісню запропоновано в кімнату ' + roomId);
+                    showToast('Пісню запропоновано на вечірку ' + roomId);
                 }
             } else {
                 const data = await res.json().catch(() => ({}));
@@ -298,21 +297,14 @@ export default function Home() {
             }
         } catch (e) {
             showToast('Помилка з\'єднання');
-        } finally {
-            setProposeModalSong(null);
         }
     }
 
     function handleProposeClick(song: SongListItem) {
-        const userId = getUserId();
-        const myRoom = activeRooms.find(r => r.leaderId === userId);
-
-        if (myRoom) {
-            proposeSongToRoom(myRoom.roomId, song);
-        } else if (activeRooms.length === 1) {
-            proposeSongToRoom(activeRooms[0].roomId, song);
-        } else if (activeRooms.length > 1) {
-            setProposeModalSong(song);
+        if (lastRoomId) {
+            proposeSongToRoom(lastRoomId, song);
+        } else {
+            showToast('Спочатку приєднайтеся до вечірки!');
         }
     }
 
@@ -480,12 +472,12 @@ export default function Home() {
                                 </div>
 
                                 <div className="flex gap-2">
-                                    {activeRooms.length > 0 && (
+                                    {lastRoomId && (
                                         <button
                                             type="button"
                                             onClick={(e) => { e.stopPropagation(); handleProposeClick(song); }}
                                             className="shrink-0 flex items-center justify-center rounded border-2 border-black bg-white w-10 h-10 text-black transition active:translate-x-[1px] active:translate-y-[1px] dark:border-white dark:bg-black dark:text-white"
-                                            title="Запропонувати пісню в активну кімнату"
+                                            title="Запропонувати пісню на поточну вечірку"
                                         >
                                             <svg viewBox="0 0 24 24" className="w-5 h-5 fill-none stroke-current stroke-2" strokeLinecap="round" strokeLinejoin="round">
                                                 <circle cx="18" cy="5" r="3"></circle>
@@ -526,34 +518,7 @@ export default function Home() {
                     ))}
                 </section>
 
-                {proposeModalSong && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-                        <div className="w-full max-w-sm rounded-xl border-2 border-black bg-white p-4 shadow-xl flex flex-col dark:border-white dark:bg-black">
-                            <h2 className="mb-2 text-xl font-black text-black dark:text-white">Оберіть кімнату</h2>
-                            <p className="mb-4 text-sm font-bold opacity-80 text-black dark:text-white">В яку кімнату запропонувати пісню &quot;{proposeModalSong.title}&quot;?</p>
-                            
-                            <div className="flex flex-col gap-2 mb-4">
-                                {activeRooms.map(room => (
-                                    <button
-                                        key={room.roomId}
-                                        onClick={() => proposeSongToRoom(room.roomId, proposeModalSong)}
-                                        className="w-full text-left rounded-lg border-2 border-black/20 bg-white hover:border-black p-3 transition dark:border-white/20 dark:bg-black dark:hover:border-white"
-                                    >
-                                        <div className="font-black text-lg text-black dark:text-white">Кімната №{room.roomId}</div>
-                                        <div className="text-sm font-bold opacity-80 text-black dark:text-white">Зараз грає: {room.songTitle}</div>
-                                    </button>
-                                ))}
-                            </div>
-                            
-                            <button 
-                                onClick={() => setProposeModalSong(null)}
-                                className="w-full rounded border-2 border-black bg-black p-3 font-black text-white transition active:translate-x-[1px] active:translate-y-[1px] dark:border-white dark:bg-white dark:text-black"
-                            >
-                                Скасувати
-                            </button>
-                        </div>
-                    </div>
-                )}
+
 
                 <footer className="mt-6 text-xs opacity-70">
                     Порада: на телефоні ведучий відкриває кімнату та керує

@@ -7,6 +7,9 @@ const {
     setProposal,
 } = require("./roomState");
 
+const pendingLeaderRequests = new Map(); // roomId -> { timerId, requesterId }
+
+
 function registerSocketHandlers(io, { getRoomStateSnapshot: getSnapshotFromDeps } = {}) {
     const getSnapshot = typeof getSnapshotFromDeps === "function" ? getSnapshotFromDeps : getRoomStateSnapshot;
 
@@ -213,7 +216,7 @@ function registerSocketHandlers(io, { getRoomStateSnapshot: getSnapshotFromDeps 
             if (typeof ack === "function") ack({ ok: true });
         });
 
-        // Allow any user to take leadership (Take Over)
+        // Allow any user to request leadership (Take Over)
         socket.on("take_leadership", (payload, ack) => {
             const roomId = safeString(payload?.roomId);
             if (!roomId) return;
@@ -224,24 +227,75 @@ function registerSocketHandlers(io, { getRoomStateSnapshot: getSnapshotFromDeps 
                 return;
             }
 
-            const { clearedRoomIds } = setLeader(roomId, userId);
+            const snapshot = getSnapshot(roomId);
             
-            const { updateRoomLeader } = require("./sqlite");
-            updateRoomLeader(roomId, userId);
+            // If there's an existing request, clear it
+            if (pendingLeaderRequests.has(roomId)) {
+                clearTimeout(pendingLeaderRequests.get(roomId).timerId);
+                pendingLeaderRequests.delete(roomId);
+            }
 
-            emitToRoom(roomId, "leader_change", {
-                roomId,
-                leaderId: userId,
-                timestamp: Date.now(),
-            });
+            const performTransfer = () => {
+                const { clearedRoomIds } = setLeader(roomId, userId);
+                
+                const { updateRoomLeader } = require("./sqlite");
+                updateRoomLeader(roomId, userId);
 
-            // Notify other rooms that they lost this leader
-            for (const clearedId of clearedRoomIds) {
-                emitToRoom(clearedId, "leader_change", {
-                    roomId: clearedId,
-                    leaderId: "",
+                emitToRoom(roomId, "leader_change", {
+                    roomId,
+                    leaderId: userId,
                     timestamp: Date.now(),
                 });
+
+                // Notify other rooms that they lost this leader
+                for (const clearedId of clearedRoomIds) {
+                    emitToRoom(clearedId, "leader_change", {
+                        roomId: clearedId,
+                        leaderId: "",
+                        timestamp: Date.now(),
+                    });
+                }
+                pendingLeaderRequests.delete(roomId);
+            };
+
+            if (snapshot.leaderId && snapshot.leaderId !== userId) {
+                // There is an active leader. Send a request and wait 5 seconds.
+                emitToRoom(roomId, "leader_request", {
+                    requesterId: userId,
+                });
+
+                const timerId = setTimeout(() => {
+                    performTransfer();
+                }, 10000);
+
+                pendingLeaderRequests.set(roomId, { timerId, requesterId: userId });
+
+                if (typeof ack === "function") ack({ ok: true, pending: true });
+            } else {
+                // No leader (or taking it from self?), transfer instantly.
+                performTransfer();
+                if (typeof ack === "function") ack({ ok: true, pending: false });
+            }
+        });
+
+        socket.on("reject_leadership", (payload, ack) => {
+            const roomId = safeString(payload?.roomId);
+            if (!roomId) return;
+
+            const userId = safeString(payload?.userId) || socket.data.userId;
+            const snapshot = getSnapshot(roomId);
+
+            // Only the current leader can reject
+            if (snapshot.leaderId && snapshot.leaderId === userId) {
+                if (pendingLeaderRequests.has(roomId)) {
+                    clearTimeout(pendingLeaderRequests.get(roomId).timerId);
+                    pendingLeaderRequests.delete(roomId);
+
+                    emitToRoom(roomId, "leader_rejected", {
+                        roomId,
+                        timestamp: Date.now()
+                    });
+                }
             }
 
             if (typeof ack === "function") ack({ ok: true });

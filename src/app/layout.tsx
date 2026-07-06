@@ -1,10 +1,17 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import SwRegister from '@/components/SwRegister';
 import GlobalWakeLock from '@/components/GlobalWakeLock';
 
 const inter = Inter({ subsets: ['latin'] });
+
+export const viewport: Viewport = {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+};
 
 export const metadata: Metadata = {
     title: 'SingSync',
@@ -17,11 +24,11 @@ export default function RootLayout({
     children: React.ReactNode;
 }>) {
     return (
-        <html lang="en" className="dark">
+        <html lang="en" className="dark overflow-x-hidden">
             <head>
                 <link rel="manifest" href="/manifest.json" />
             </head>
-            <body className={inter.className}>
+            <body className={`${inter.className} overflow-x-hidden w-full`}>
                 <SwRegister />
                 <GlobalWakeLock />
                 {children}

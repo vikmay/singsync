@@ -259,18 +259,34 @@ function registerSocketHandlers(io, { getRoomStateSnapshot: getSnapshotFromDeps 
             };
 
             if (snapshot.leaderId && snapshot.leaderId !== userId) {
-                // There is an active leader. Send a request and wait 5 seconds.
-                emitToRoom(roomId, "leader_request", {
-                    requesterId: userId,
-                });
+                const members = getMembers(roomId);
+                let leaderConnected = false;
+                for (const sid of members) {
+                    const s = io.sockets.sockets.get(sid);
+                    if (s && s.data.userId === snapshot.leaderId) {
+                        leaderConnected = true;
+                        break;
+                    }
+                }
 
-                const timerId = setTimeout(() => {
+                if (leaderConnected) {
+                    // There is an active leader. Send a request and wait 10 seconds.
+                    emitToRoom(roomId, "leader_request", {
+                        requesterId: userId,
+                    });
+
+                    const timerId = setTimeout(() => {
+                        performTransfer();
+                    }, 10000);
+
+                    pendingLeaderRequests.set(roomId, { timerId, requesterId: userId });
+
+                    if (typeof ack === "function") ack({ ok: true, pending: true });
+                } else {
+                    // Leader disconnected! Transfer instantly.
                     performTransfer();
-                }, 10000);
-
-                pendingLeaderRequests.set(roomId, { timerId, requesterId: userId });
-
-                if (typeof ack === "function") ack({ ok: true, pending: true });
+                    if (typeof ack === "function") ack({ ok: true, pending: false });
+                }
             } else {
                 // No leader (or taking it from self?), transfer instantly.
                 performTransfer();

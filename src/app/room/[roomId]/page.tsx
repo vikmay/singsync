@@ -161,17 +161,20 @@ function LineBlock({ line, transposeDelta, fontScale, showChords }: { line: Line
 
     return (
         <div
-            className="px-2 py-2 block text-center break-words shadow-[inset_2px_0_0_rgba(0,0,0,0.3)] dark:shadow-[inset_2px_0_0_rgba(255,255,255,0.2)]"
-            style={{ minHeight: showChords ? '2.5em' : '1.5em' }}
+            className={`px-2 block text-center break-words shadow-[inset_2px_0_0_rgba(0,0,0,0.3)] dark:shadow-[inset_2px_0_0_rgba(255,255,255,0.2)] ${showChords ? 'pb-1' : 'py-0.5'}`}
+            style={{ 
+                minHeight: showChords ? '1.8em' : '1.2em',
+                paddingTop: showChords ? `${18 * fontScale}px` : undefined 
+            }}
         >
             {segments.map((seg, idx) => (
                 <span key={idx} className="relative inline">
                     {showChords && (
-                        <span className="absolute bottom-full left-0 font-black leading-tight text-blue-700 dark:text-blue-400 whitespace-pre flex items-center justify-center z-10" style={{ fontSize: `${18 * fontScale}px` }}>
+                        <span className="absolute bottom-[75%] left-0 font-black leading-tight text-blue-700 dark:text-blue-400 whitespace-pre flex items-center justify-center z-10" style={{ fontSize: `${18 * fontScale}px` }}>
                             <span className="text-center min-w-[1ch]">{seg.chord ? transposeLineChords(seg.chord, transposeDelta) : ''}</span>
                         </span>
                     )}
-                    <span className={`font-black text-black dark:text-white ${seg.text.trim() === '' ? 'whitespace-pre' : 'whitespace-pre-wrap'}`} style={{ fontSize: `${28 * fontScale}px`, lineHeight: showChords ? '1.8' : '1.2' }}>
+                    <span className={`font-black text-black dark:text-white ${seg.text.trim() === '' ? 'whitespace-pre' : 'whitespace-pre-wrap'}`} style={{ fontSize: `${28 * fontScale}px`, lineHeight: '1.2' }}>
                         {seg.text}
                     </span>
                 </span>
@@ -1115,7 +1118,13 @@ export default function RoomPage() {
                     >
 
 
-                        <div className={`flex flex-col w-full font-sans pb-[50vh] border-2 border-transparent ${isDetached ? 'opacity-80' : ''}`} style={{ fontSize: `${28 * fontScale}px` }}>
+                        <div 
+                            className={`flex flex-col w-full font-sans pb-[50vh] border-2 border-transparent ${isDetached ? 'opacity-80' : ''}`} 
+                            style={{ 
+                                fontSize: `${28 * fontScale}px`,
+                                paddingTop: showChords ? `${18 * fontScale}px` : undefined
+                            }}
+                        >
                             {lines.length === 0 ?
                                 <div className="p-3 text-sm opacity-80">
                                     Завантаження контенту...

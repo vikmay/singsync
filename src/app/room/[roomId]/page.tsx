@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useLayoutEffect } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -161,21 +161,34 @@ function LineBlock({ line, transposeDelta, fontScale, showChords }: { line: Line
 
     return (
         <div
-            className="px-2 py-2 block text-center break-words shadow-[inset_2px_0_0_rgba(0,0,0,0.3)] dark:shadow-[inset_2px_0_0_rgba(255,255,255,0.2)]"
-            style={{ minHeight: showChords ? '2.5em' : '1.5em' }}
+            className={`px-2 block text-center break-words shadow-[inset_2px_0_0_rgba(0,0,0,0.3)] dark:shadow-[inset_2px_0_0_rgba(255,255,255,0.2)] ${showChords ? 'pb-1' : 'py-0.5'}`}
+            style={{ 
+                minHeight: showChords ? '1.8em' : '1.2em'
+            }}
         >
-            {segments.map((seg, idx) => (
-                <span key={idx} className="relative inline">
-                    {showChords && (
-                        <span className="absolute bottom-full left-0 font-black leading-tight text-blue-700 dark:text-blue-400 whitespace-pre flex items-center justify-center z-10" style={{ fontSize: `${18 * fontScale}px` }}>
-                            <span className="text-center min-w-[1ch]">{seg.chord ? transposeLineChords(seg.chord, transposeDelta) : ''}</span>
+            {segments.map((seg, idx) => {
+                const firstChar = seg.text.charAt(0);
+                const restText = seg.text.slice(1);
+                return (
+                    <span key={idx} className="inline">
+                        <span className="whitespace-nowrap">
+                            {showChords && (
+                                <span className="inline-block w-0 h-0 relative align-baseline">
+                                    <span className="absolute bottom-0 left-0 font-black leading-tight text-blue-700 dark:text-blue-400 whitespace-pre flex items-center justify-center z-10" style={{ fontSize: `${22 * fontScale}px`, transform: `translateY(-1em)` }}>
+                                        <span className="text-center min-w-[1ch]">{seg.chord ? transposeLineChords(seg.chord, transposeDelta) : ''}</span>
+                                    </span>
+                                </span>
+                            )}
+                            <span className={`font-black text-black dark:text-white ${firstChar === ' ' ? 'whitespace-pre' : 'whitespace-pre-wrap'}`} style={{ fontSize: `${28 * fontScale}px`, lineHeight: showChords ? '2.2' : '1.2' }}>
+                                {firstChar}
+                            </span>
                         </span>
-                    )}
-                    <span className={`font-black text-black dark:text-white ${seg.text.trim() === '' ? 'whitespace-pre' : 'whitespace-pre-wrap'}`} style={{ fontSize: `${28 * fontScale}px`, lineHeight: showChords ? '1.8' : '1.2' }}>
-                        {seg.text}
+                        <span className={`font-black text-black dark:text-white ${restText.trim() === '' ? 'whitespace-pre' : 'whitespace-pre-wrap'}`} style={{ fontSize: `${28 * fontScale}px`, lineHeight: showChords ? '2.2' : '1.2' }}>
+                            {restText}
+                        </span>
                     </span>
-                </span>
-            ))}
+                );
+            })}
         </div>
     );
 }
@@ -311,6 +324,26 @@ export default function RoomPage() {
 
     const [showChords, setShowChords] = useState(false);
 
+    useEffect(() => {
+        const stored = localStorage.getItem('singsync_show_chords');
+        if (stored === 'true') {
+            setShowChords(true);
+        }
+    }, []);
+
+    function handleToggleChords() {
+        const next = !showChords;
+        setShowChords(next);
+        localStorage.setItem('singsync_show_chords', next ? 'true' : 'false');
+    }
+
+    // Maintain logical scroll position when layout sizes change (fontScale, showChords)
+    useLayoutEffect(() => {
+        const el = scrollRef.current;
+        if (el) {
+            el.scrollTop = scrollTopFromPosition(el, scrollTargetRef.current);
+        }
+    }, [showChords, fontScale]);
 
     useEffect(() => {
         if (!socket || !userId) return;
@@ -1052,7 +1085,7 @@ export default function RoomPage() {
                             )}
                             <button
                                 type="button"
-                                onClick={() => setShowChords(!showChords)}
+                                onClick={handleToggleChords}
                                 className={`${showChords ? '' : 'ml-auto'} relative flex h-10 w-20 shrink-0 items-center justify-center transition active:translate-x-[1px] active:translate-y-[1px] select-none touch-manipulation ${
                                     showChords
                                         ? 'text-blue-700 dark:text-blue-400'
@@ -1108,7 +1141,13 @@ export default function RoomPage() {
                     >
 
 
-                        <div className={`flex flex-col w-full font-sans pb-[50vh] border-2 border-transparent ${isDetached ? 'opacity-80' : ''}`} style={{ fontSize: `${28 * fontScale}px` }}>
+                        <div 
+                            className={`flex flex-col w-full font-sans pb-[50vh] border-2 border-transparent ${isDetached ? 'opacity-80' : ''}`} 
+                            style={{ 
+                                fontSize: `${28 * fontScale}px`,
+                                paddingTop: showChords ? `${24 * fontScale}px` : undefined
+                            }}
+                        >
                             {lines.length === 0 ?
                                 <div className="p-3 text-sm opacity-80">
                                     Завантаження контенту...

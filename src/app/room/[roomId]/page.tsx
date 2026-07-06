@@ -1090,12 +1090,7 @@ export default function RoomPage() {
                             +
                         </button>
                     </div>
-                    <div
-                        ref={scrollRef}
-                        onScroll={onNativeScroll}
-                        className="flex-1 overflow-y-auto scrollbar-hide overscroll-contain"
-                    >
-                        {showLeaderSuccess && (
+            {showLeaderSuccess && (
                 <div className="fixed top-0 left-0 w-full z-[200] flex justify-center animate-in slide-in-from-top fade-in duration-500 pointer-events-none">
                     <div className="mt-4 flex items-center gap-3 rounded-full bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 px-6 py-3 font-black text-white shadow-[0_0_20px_rgba(234,179,8,0.5)]">
                         <span className="text-2xl animate-bounce">👑</span>
@@ -1104,9 +1099,14 @@ export default function RoomPage() {
                     </div>
                 </div>
             )}
+                    <div
+                        ref={scrollRef}
+                        onScroll={onNativeScroll}
+                        className="flex-1 overflow-y-auto scrollbar-hide overscroll-contain"
+                    >
 
-            <div className={`relative flex flex-col items-center min-h-[100dvh] pb-12 select-none font-sans font-medium touch-manipulation overflow-x-hidden ${isDetached ? 'opacity-80' : ''}`}>
-                        <div className="flex flex-col w-full font-sans pb-[50vh] border-2 border-transparent" style={{ fontSize: `${28 * fontScale}px` }}>
+
+                        <div className={`flex flex-col w-full font-sans pb-[50vh] border-2 border-transparent ${isDetached ? 'opacity-80' : ''}`} style={{ fontSize: `${28 * fontScale}px` }}>
                             {lines.length === 0 ?
                                 <div className="p-3 text-sm opacity-80">
                                     Завантаження контенту...
@@ -1117,7 +1117,6 @@ export default function RoomPage() {
                                 <LineBlock key={idx} line={line} transposeDelta={transposeDelta} fontScale={fontScale} showChords={showChords} />
                             ))}
                         </div>
-                    </div>
                     </div>
                 </section>
 

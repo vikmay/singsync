@@ -520,10 +520,7 @@ export default function Home() {
 
 
 
-                <footer className="mt-6 text-xs opacity-70">
-                    Порада: на телефоні ведучий відкриває кімнату та керує
-                    скролом, інші підключаються за QR/кодом.
-                </footer>
+
             </div>
         </main>
     );

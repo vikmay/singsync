@@ -840,7 +840,9 @@ export default function RoomPage() {
                             <button
                                 type="button"
                                 onClick={() => {
-                                    pendingOwnRequestRef.current = true;
+                                    if (!isLeader) {
+                                        pendingOwnRequestRef.current = true;
+                                    }
                                     socket.emit('take_leadership', { roomId, userId }, (ack: { ok: boolean, pending: boolean }) => {
                                         if (ack.ok && ack.pending) {
                                             showToast("Запит надіслано ведучому (очікування 10с)...");

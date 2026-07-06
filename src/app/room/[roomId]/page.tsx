@@ -1137,7 +1137,8 @@ export default function RoomPage() {
                     <div
                         ref={scrollRef}
                         onScroll={onNativeScroll}
-                        className="flex-1 overflow-y-auto scrollbar-hide overscroll-contain"
+                        className="flex-1 overflow-y-auto scrollbar-hide overscroll-contain select-none"
+                        style={{ WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}
                     >
 
 

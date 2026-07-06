@@ -20,7 +20,7 @@ export default function GlobalWakeLock() {
                     setNeedsActivation(false);
 
                     if (isManualClick) {
-                        showToast('Екран більше не гаснутиме!', 'success');
+                        showToast('Екран більше не гаснутиме!');
                     }
 
                     wakeLockRef.current.addEventListener('release', () => {

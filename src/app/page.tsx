@@ -107,22 +107,7 @@ function ActiveRoomItem({ room, isAdmin, onDelete }: ActiveRoomItemProps) {
     );
 }
 
-function formatActionLabel(action: string) {
-    switch (action) {
-        case 'down':
-            return 'Свайп/Клавіша: Вниз';
-        case 'up':
-            return 'Свайп/Клавіша: Вгору';
-        case 'pageDown':
-            return 'Свайп/Клавіша: Далі';
-        case 'pageUp':
-            return 'Свайп/Клавіша: Назад';
-        case 'space':
-            return 'Свайп/Клавіша: Space';
-        default:
-            return action;
-    }
-}
+
 
 
 export default function Home() {
@@ -167,45 +152,13 @@ export default function Home() {
     const [expandedSongId, setExpandedSongId] = useState<number | null>(null);
     const [previewCache, setPreviewCache] = useState<Record<number, string[]>>({});
 
-    type Action = 'down' | 'up' | 'pageDown' | 'pageUp' | 'space';
-    const [binding, setBinding] = useState<Record<Action, string>>({
-        down: 'ArrowDown',
-        up: 'ArrowUp',
-        pageDown: 'PageDown',
-        pageUp: 'PageUp',
-        space: ' ',
-    });
-    const [showPedalPanel, setShowPedalPanel] = useState(false);
-    const [waitingForKey, setWaitingForKey] = useState<Action | null>(null);
+
 
     useEffect(() => {
         if (localStorage.getItem('admin_pwd')) {
             setIsAdmin(true);
         }
-        const stored = localStorage.getItem('pedal_bindings');
-        if (stored) {
-            try {
-                setBinding(JSON.parse(stored));
-            } catch (e) {
-                // Ignore
-            }
-        }
     }, []);
-
-    useEffect(() => {
-        function onKeyDown(e: KeyboardEvent) {
-            if (waitingForKey) {
-                e.preventDefault();
-                const key = e.key === ' ' ? ' ' : e.key;
-                const newBinding = { ...binding, [waitingForKey]: key };
-                setBinding(newBinding);
-                localStorage.setItem('pedal_bindings', JSON.stringify(newBinding));
-                setWaitingForKey(null);
-            }
-        }
-        window.addEventListener('keydown', onKeyDown, { passive: false });
-        return () => window.removeEventListener('keydown', onKeyDown as any);
-    }, [binding, waitingForKey]);
 
     const trimmedQuery = useMemo(() => query.trim(), [query]);
 
@@ -329,7 +282,7 @@ export default function Home() {
             if (res.ok) {
                 const data = await res.json();
                 if (data.changed) {
-                    showToast('Пісню змінено!', 'success');
+                    showToast('Пісню змінено!');
                     router.push(`/room/${roomId}`);
                 } else {
                     showToast('Пісню запропоновано в кімнату ' + roomId);
@@ -385,9 +338,9 @@ export default function Home() {
                                         createRoomForSong(songs[0].id);
                                     }}
                                     className="rounded border-2 border-black bg-black px-3 py-2 text-sm font-black text-white transition active:translate-x-[1px] active:translate-y-[1px] dark:border-white dark:bg-white dark:text-black"
-                                    title="Створити кімнату та стати ведучим"
+                                    title="Створити вечірку та стати ведучим"
                                 >
-                                    Створити кімнату
+                                    Створити вечірку
                                 </button>
                                 {isAdmin && (
                                     <Link
@@ -398,18 +351,7 @@ export default function Home() {
                                         Додати пісню
                                     </Link>
                                 )}
-                                <button
-                                    type="button"
-                                    onClick={() => setShowPedalPanel(!showPedalPanel)}
-                                    className={`flex h-10 w-10 items-center justify-center rounded-lg border-2 text-xl transition active:translate-x-[1px] active:translate-y-[1px] ${
-                                        showPedalPanel ? 'border-blue-500 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : 'border-black bg-white dark:border-white dark:bg-black'
-                                    }`}
-                                    title="Налаштування педалі"
-                                >
-                                    <svg viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current stroke-2">
-                                        <polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5" strokeLinecap="round" strokeLinejoin="round" />
-                                    </svg>
-                                </button>
+
                             </div>
                         </div>
 
@@ -434,58 +376,40 @@ export default function Home() {
                     </div>
                 </header>
 
-                {showPedalPanel && (
-                    <section className="mb-5 rounded border-2 border-black bg-white p-3 text-sm dark:border-white dark:bg-black">
-                        <div className="font-bold mb-2">Налаштування Bluetooth педалі (клавіатури)</div>
-                        <div className="flex flex-wrap items-center gap-2">
-                            {(
-                                [
-                                    'down',
-                                    'up',
-                                    'pageDown',
-                                    'pageUp',
-                                    'space',
-                                ] as Action[]
-                            ).map((a) => (
-                                <button
-                                    key={a}
-                                    type="button"
-                                    onClick={() => setWaitingForKey(a)}
-                                    className="rounded border-2 border-black bg-white px-2 py-1 font-black active:translate-x-[1px] active:translate-y-[1px] dark:border-white dark:bg-black dark:text-white"
-                                    title="Натисніть кнопку — потім будь-яку клавішу/педаль"
-                                >
-                                    {waitingForKey === a ?
-                                        'Натисни...'
-                                    :   `${formatActionLabel(a)}: ${binding[a]}`
-                                    }
-                                </button>
-                            ))}
-                        </div>
 
-                        <div className="mt-2 opacity-80">
-                            Space: перемикає швидкість синхро-світу. Arrow/Page:
-                            кроки по рядках. Налаштування зберігаються для всіх кімнат.
-                        </div>
-                    </section>
-                )}
 
-                {activeRooms.length > 0 && (
-                    <section className="mb-6">
-                        <label className="mb-2 block text-sm font-bold text-green-700 dark:text-green-400">
-                            Активні кімнати (можна приєднатися)
-                        </label>
-                        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                            {activeRooms.map((room) => (
-                                <ActiveRoomItem
-                                    key={room.roomId}
-                                    room={room}
-                                    isAdmin={isAdmin}
-                                    onDelete={deleteRoom}
-                                />
-                            ))}
-                        </div>
-                    </section>
-                )}
+                <section className="mb-6">
+                    <label className="mb-1 block text-sm font-bold">
+                        Приєднатися за кодом
+                    </label>
+                    <div className="flex gap-2">
+                        <input
+                            type="number"
+                            placeholder="4-значний код"
+                            className="w-full rounded border-2 border-black bg-white px-3 py-2 text-base font-black tracking-widest text-black outline-none dark:border-white dark:bg-black dark:text-white"
+                            onChange={(e) => {
+                                if (e.target.value.length === 4) {
+                                    router.push(`/room/${e.target.value}`);
+                                }
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    const val = (e.target as HTMLInputElement).value;
+                                    if (val) router.push(`/room/${val}`);
+                                }
+                            }}
+                        />
+                        <button
+                            onClick={() => {
+                                const input = document.querySelector('input[type="number"]') as HTMLInputElement;
+                                if (input && input.value) router.push(`/room/${input.value}`);
+                            }}
+                            className="rounded border-2 border-black bg-black px-4 py-2 text-sm font-black text-white transition active:translate-x-[1px] active:translate-y-[1px] dark:border-white dark:bg-white dark:text-black shrink-0"
+                        >
+                            Вхід
+                        </button>
+                    </div>
+                </section>
 
                 <section className="mb-4">
                     <label className="mb-1 block text-sm font-bold">

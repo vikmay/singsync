@@ -295,25 +295,6 @@ export default function RoomPage() {
 
     const [showChords, setShowChords] = useState(false);
 
-    type Action = 'down' | 'up' | 'pageDown' | 'pageUp' | 'space';
-    const [binding, setBinding] = useState<Record<Action, string>>({
-        down: 'ArrowDown',
-        up: 'ArrowUp',
-        pageDown: 'PageDown',
-        pageUp: 'PageUp',
-        space: ' ',
-    });
-
-    useEffect(() => {
-        const stored = localStorage.getItem('pedal_bindings');
-        if (stored) {
-            try {
-                setBinding(JSON.parse(stored));
-            } catch (e) {
-                // Ignore
-            }
-        }
-    }, []);
 
     useEffect(() => {
         if (!socket || !userId) return;
@@ -727,7 +708,7 @@ export default function RoomPage() {
         emitScroll(pos, speed);
     }
 
-    // Keyboard mapping (acts as "Bluetooth pedal")
+    // Default Keyboard mapping for scrolling
     useEffect(() => {
         function onKeyDown(e: KeyboardEvent) {
 
@@ -736,19 +717,19 @@ export default function RoomPage() {
 
             const key = e.key === ' ' ? ' ' : e.key;
 
-            if (key === binding.down) {
+            if (key === 'ArrowDown') {
                 e.preventDefault();
                 applyScrollByLines(1);
-            } else if (key === binding.up) {
+            } else if (key === 'ArrowUp') {
                 e.preventDefault();
                 applyScrollByLines(-1);
-            } else if (key === binding.pageDown) {
+            } else if (key === 'PageDown') {
                 e.preventDefault();
                 applyScrollByLines(8);
-            } else if (key === binding.pageUp) {
+            } else if (key === 'PageUp') {
                 e.preventDefault();
                 applyScrollByLines(-8);
-            } else if (key === binding.space) {
+            } else if (key === ' ') {
                 e.preventDefault();
                 // MVP: Space toggles speed (and also keeps it usable as "pedal")
                 toggleSpeed();
@@ -758,7 +739,6 @@ export default function RoomPage() {
         window.addEventListener('keydown', onKeyDown, { passive: false });
         return () => window.removeEventListener('keydown', onKeyDown as any);
     }, [
-        binding,
         isLeader,
         roomId,
         speed,
@@ -779,7 +759,7 @@ export default function RoomPage() {
                     await docEl.webkitRequestFullscreen();
                     setFullscreen(true);
                 } else {
-                    showToast('Повноекранний режим не підтримується на цьому пристрої (iOS)', 'error');
+                    showToast('Повноекранний режим не підтримується на цьому пристрої (iOS)');
                 }
             } else {
                 if (document.exitFullscreen) {
@@ -883,7 +863,7 @@ export default function RoomPage() {
                                 if (navigator.share) {
                                     navigator.share({
                                         title: 'SingSync',
-                                        text: `Приєднуйся до кімнати №${roomId}!`,
+                                        text: `Приєднуйся до вечірки! Код: ${roomId}`,
                                         url: url,
                                     }).catch(() => {
                                         navigator.clipboard?.writeText(url);
@@ -905,7 +885,7 @@ export default function RoomPage() {
                                     }
                                 }
                             }}
-                            className="flex h-10 shrink-0 items-center gap-2 text-sm font-black text-blue-700 bg-blue-100 px-3 rounded-lg border-2 border-blue-200 transition active:translate-x-[1px] active:translate-y-[1px] dark:bg-blue-900/50 dark:text-blue-300 dark:border-blue-700/50"
+                            className="flex h-10 shrink-0 items-center gap-2 text-base font-black text-blue-700 bg-blue-100 px-3 rounded-lg border-2 border-blue-200 transition active:translate-x-[1px] active:translate-y-[1px] dark:bg-blue-900/50 dark:text-blue-300 dark:border-blue-700/50 tracking-widest"
                             title="Поділитися"
                         >
                             <span>{roomId}</span>
@@ -922,7 +902,7 @@ export default function RoomPage() {
                             type="button"
                             onClick={() => setShowQr(!showQr)}
                             className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border-2 transition active:translate-x-[1px] active:translate-y-[1px] ${
-                                showQr ? 'border-blue-500 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : 'border-black bg-white dark:border-white dark:bg-black'
+                                showQr ? 'border-purple-500 bg-purple-200 text-purple-900 dark:bg-purple-800 dark:text-purple-100 dark:border-purple-400' : 'border-purple-300 bg-purple-100 text-purple-700 dark:border-purple-700 dark:bg-purple-900/50 dark:text-purple-300'
                             }`}
                             title="Показати QR Код"
                         >
@@ -1085,7 +1065,7 @@ export default function RoomPage() {
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
                         <div className="w-full max-w-sm rounded-xl border-2 border-black bg-white p-6 shadow-xl flex flex-col dark:border-white dark:bg-black">
                             <div className="mb-4 flex flex-shrink-0 items-center justify-between">
-                                <h2 className="text-xl font-black text-black dark:text-white">QR Код кімнати</h2>
+                                <h2 className="text-xl font-black text-black dark:text-white">Код: {roomId}</h2>
                                 <button 
                                     onClick={() => setShowQr(false)}
                                     className="text-2xl font-black leading-none opacity-50 hover:opacity-100"
@@ -1107,7 +1087,7 @@ export default function RoomPage() {
                                         {qrUrl || ''}
                                     </div>
                                     <div className="opacity-80 font-bold">
-                                        Відскануйте цей QR-код на своєму телефоні, щоб приєднатися до кімнати.
+                                        Відскануйте цей QR-код на своєму телефоні, щоб приєднатися до вечірки.
                                     </div>
                                 </div>
                             ) : null}

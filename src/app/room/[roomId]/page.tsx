@@ -189,7 +189,10 @@ export default function RoomPage() {
 
     useEffect(() => {
         setUserId(getUserId());
-    }, []);
+        if (roomId) {
+            localStorage.setItem('last_room_id', roomId);
+        }
+    }, [roomId]);
 
     const socket = useMemo(() => {
         if (typeof window === 'undefined') return null;
@@ -383,6 +386,7 @@ export default function RoomPage() {
             }
         });
         s.on('room_deleted', () => {
+            localStorage.removeItem('last_room_id');
             showToast("Ця кімната була видалена.");
             router.push('/');
         });
@@ -409,6 +413,7 @@ export default function RoomPage() {
                 if (cancelled) return;
                 
                 if (res.status === 404) {
+                    localStorage.removeItem('last_room_id');
                     showToast("Ця кімната більше не існує.");
                     router.push('/');
                     return;

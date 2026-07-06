@@ -122,6 +122,7 @@ export default function Home() {
     const [proposeModalSong, setProposeModalSong] = useState<SongListItem | null>(null);
     const [fullscreen, setFullscreen] = useState(false);
     const [fullscreenSupported, setFullscreenSupported] = useState(true);
+    const [lastRoomId, setLastRoomId] = useState<string | null>(null);
 
     useEffect(() => {
         const handleFullscreenChange = () => {
@@ -157,6 +158,10 @@ export default function Home() {
     useEffect(() => {
         if (localStorage.getItem('admin_pwd')) {
             setIsAdmin(true);
+        }
+        const savedRoom = localStorage.getItem('last_room_id');
+        if (savedRoom) {
+            setLastRoomId(savedRoom);
         }
     }, []);
 
@@ -318,13 +323,9 @@ export default function Home() {
                     <div className="flex items-start justify-between gap-3">
                         <div className="flex flex-wrap items-start gap-4">
                             <div>
-                                <h1 className="mb-2 text-3xl font-black tracking-tight">
+                                <h1 className="text-3xl font-black tracking-tight">
                                     SingSync
                                 </h1>
-                                <p className="text-sm opacity-80">
-                                    Спільний перегляд текстів пісень з синхронним
-                                    скролом.
-                                </p>
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -376,39 +377,37 @@ export default function Home() {
                     </div>
                 </header>
 
-
+                {lastRoomId && (
+                    <div className="sticky top-0 z-50 mb-6 py-2 -mt-2 bg-white dark:bg-black">
+                        <Link
+                            href={`/room/${lastRoomId}`}
+                            className="block w-full rounded-xl border-4 border-purple-500 bg-purple-100 p-4 text-center text-lg font-black text-purple-900 shadow-lg transition active:translate-x-[2px] active:translate-y-[2px] dark:border-purple-400 dark:bg-purple-900 dark:text-purple-100"
+                        >
+                            🎤 Повернутися на вечірку {lastRoomId}
+                        </Link>
+                    </div>
+                )}
 
                 <section className="mb-6">
                     <label className="mb-1 block text-sm font-bold">
                         Приєднатися за кодом
                     </label>
-                    <div className="flex gap-2">
-                        <input
-                            type="number"
-                            placeholder="4-значний код"
-                            className="w-full rounded border-2 border-black bg-white px-3 py-2 text-base font-black tracking-widest text-black outline-none dark:border-white dark:bg-black dark:text-white"
-                            onChange={(e) => {
-                                if (e.target.value.length === 4) {
-                                    router.push(`/room/${e.target.value}`);
-                                }
-                            }}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    const val = (e.target as HTMLInputElement).value;
-                                    if (val) router.push(`/room/${val}`);
-                                }
-                            }}
-                        />
-                        <button
-                            onClick={() => {
-                                const input = document.querySelector('input[type="number"]') as HTMLInputElement;
-                                if (input && input.value) router.push(`/room/${input.value}`);
-                            }}
-                            className="rounded border-2 border-black bg-black px-4 py-2 text-sm font-black text-white transition active:translate-x-[1px] active:translate-y-[1px] dark:border-white dark:bg-white dark:text-black shrink-0"
-                        >
-                            Вхід
-                        </button>
-                    </div>
+                    <input
+                        type="number"
+                        placeholder="4-значний код"
+                        className="w-full rounded border-2 border-black bg-white px-3 py-2 text-base font-black tracking-widest text-black outline-none dark:border-white dark:bg-black dark:text-white"
+                        onChange={(e) => {
+                            if (e.target.value.length === 4) {
+                                router.push(`/room/${e.target.value}`);
+                            }
+                        }}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                const val = (e.target as HTMLInputElement).value;
+                                if (val) router.push(`/room/${val}`);
+                            }
+                        }}
+                    />
                 </section>
 
                 <section className="mb-4">

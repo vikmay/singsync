@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
+import { io, type Socket } from 'socket.io-client';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { showToast } from '@/lib/toast';
@@ -134,6 +135,57 @@ export default function Home() {
         
         return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
     }, []);
+
+    const [socket, setSocket] = useState<Socket | null>(null);
+    const [leaderRequestCountdown, setLeaderRequestCountdown] = useState(0);
+    const leaderIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    useEffect(() => {
+        if (leaderRequestCountdown <= 0 && leaderIntervalRef.current) {
+            clearInterval(leaderIntervalRef.current);
+            leaderIntervalRef.current = null;
+        }
+    }, [leaderRequestCountdown]);
+
+    useEffect(() => {
+        if (!lastRoomId) return;
+        
+        const s = io(window.location.origin, {
+            autoConnect: true,
+            reconnection: true,
+        });
+        setSocket(s);
+
+        const onConnect = () => {
+            s.emit('room_join', { roomId: lastRoomId, userId: getUserId() });
+        };
+
+        s.on('connect', onConnect);
+        if (s.connected) onConnect();
+
+        s.on('leader_request', () => {
+            // We can't perfectly know if we are still the leader unless we check ActiveRooms, 
+            // but the server only sends leader_request if a request is made. 
+            // We just assume we are the leader if we receive this, or the server will ignore our leader_keep anyway.
+            setLeaderRequestCountdown(10);
+            if (leaderIntervalRef.current) clearInterval(leaderIntervalRef.current);
+            leaderIntervalRef.current = setInterval(() => {
+                setLeaderRequestCountdown((c) => {
+                    if (c <= 1) return 0;
+                    return c - 1;
+                });
+            }, 1000);
+        });
+
+        s.on('leader_change', () => {
+            setLeaderRequestCountdown(0);
+        });
+
+        return () => {
+            s.disconnect();
+            if (leaderIntervalRef.current) clearInterval(leaderIntervalRef.current);
+        };
+    }, [lastRoomId]);
 
     async function toggleFullscreen() {
         try {
@@ -522,6 +574,31 @@ export default function Home() {
 
 
             </div>
+
+            {leaderRequestCountdown > 0 && lastRoomId && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
+                    <div className="w-full max-w-sm rounded-xl border-4 border-orange-500 bg-white p-6 shadow-2xl flex flex-col text-center dark:bg-black">
+                        <div className="text-6xl mb-4">👑</div>
+                        <h2 className="mb-2 text-2xl font-black text-black dark:text-white">Увага!</h2>
+                        <p className="mb-6 text-lg font-bold text-black dark:text-white">
+                            Хтось хоче стати ведучим!<br/>
+                            У вас є <span className="text-orange-500 text-2xl font-black">{leaderRequestCountdown}</span> сек, щоб втримати корону.
+                        </p>
+                        
+                        <button 
+                            onClick={() => {
+                                setLeaderRequestCountdown(0);
+                                if (socket && lastRoomId) {
+                                    socket.emit('reject_leadership', { roomId: lastRoomId, userId: getUserId() });
+                                }
+                            }}
+                            className="w-full rounded-xl border-4 border-orange-500 bg-orange-100 p-4 text-xl font-black text-orange-900 transition active:translate-x-[2px] active:translate-y-[2px] dark:border-orange-500 dark:bg-orange-900 dark:text-orange-100"
+                        >
+                            🛡️ Втримати корону
+                        </button>
+                    </div>
+                </div>
+            )}
         </main>
     );
 }

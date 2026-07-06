@@ -42,6 +42,26 @@ export default function EditSongPage() {
     const [isEditingText, setIsEditingText] = useState(false);
     const [fullscreen, setFullscreen] = useState(false);
     const [fullscreenSupported, setFullscreenSupported] = useState(true);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+    const handleToggleChords = () => {
+        if (!scrollContainerRef.current) {
+            setShowChords(!showChords);
+            return;
+        }
+        
+        const el = scrollContainerRef.current;
+        const scrollPercent = el.scrollTop / (el.scrollHeight - el.clientHeight || 1);
+        
+        setShowChords(!showChords);
+        
+        requestAnimationFrame(() => {
+            if (scrollContainerRef.current) {
+                const newEl = scrollContainerRef.current;
+                newEl.scrollTop = scrollPercent * (newEl.scrollHeight - newEl.clientHeight);
+            }
+        });
+    };
 
     // Reset isEditingText when switching modes
     useEffect(() => {
@@ -210,7 +230,7 @@ export default function EditSongPage() {
         <main className="flex h-[100dvh] flex-col overflow-hidden bg-white text-black dark:bg-black dark:text-white">
             <div className="mx-auto flex h-full w-full max-w-md flex-col border-x-2 border-black/5 dark:border-white/5 relative">
                 
-                <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide flex flex-col">
+                <div ref={scrollContainerRef} className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide flex flex-col">
                     <div className="px-4 flex flex-col gap-2 shrink-0 mb-4 pt-4">
                         <header className="mb-2 shrink-0 flex items-start justify-between gap-3">
                             <div>
@@ -320,7 +340,7 @@ export default function EditSongPage() {
                             <div className="mb-1 text-xs font-bold text-center">Акорди</div>
                             <button
                                 type="button"
-                                onClick={() => setShowChords(!showChords)}
+                                onClick={handleToggleChords}
                                 className={`relative flex h-8 w-16 shrink-0 items-center justify-center transition active:translate-y-[1px] active:translate-x-[1px] mx-auto ${
                                     showChords
                                         ? 'text-blue-700 dark:text-blue-400'

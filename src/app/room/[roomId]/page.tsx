@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useLayoutEffect } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -311,6 +311,13 @@ export default function RoomPage() {
 
     const [showChords, setShowChords] = useState(false);
 
+    // Maintain logical scroll position when layout sizes change (fontScale, showChords)
+    useLayoutEffect(() => {
+        const el = scrollRef.current;
+        if (el) {
+            el.scrollTop = scrollTopFromPosition(el, scrollTargetRef.current);
+        }
+    }, [showChords, fontScale]);
 
     useEffect(() => {
         if (!socket || !userId) return;

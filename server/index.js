@@ -266,7 +266,7 @@ async function main() {
                     }
 
                     if (!roomId) {
-                        roomId = Math.floor(Math.random() * 99 + 1).toString();
+                        roomId = Math.floor(1000 + Math.random() * 9000).toString();
                     }
 
                     // Persist room in DB

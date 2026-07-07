@@ -435,10 +435,29 @@ export default function Home() {
         <main className="min-h-screen bg-white text-black dark:bg-black dark:text-white">
             <div className="mx-auto max-w-xl p-4 pb-12">
                 <header className="mb-5 flex flex-col gap-4">
-                    <div className="flex items-start justify-between gap-3">
-                        <h1 className="text-3xl font-black tracking-tight">
+                    <div className="flex items-center justify-between gap-3">
+                        <h1 className="text-3xl font-black tracking-tight shrink-0">
                             SingSync
                         </h1>
+
+                        <div className="flex-grow max-w-[200px]">
+                            <input
+                                type="number"
+                                placeholder="Код (4 цифри)"
+                                className="w-full rounded border-2 border-black bg-white px-3 py-2 text-base font-black tracking-widest text-center text-black outline-none transition-shadow focus:shadow-[4px_4px_0_0_#000] dark:border-white dark:bg-black dark:text-white dark:focus:shadow-[4px_4px_0_0_#fff]"
+                                onChange={(e) => {
+                                    if (e.target.value.length === 4) {
+                                        router.push(`/room/${e.target.value}`);
+                                    }
+                                }}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        const val = (e.target as HTMLInputElement).value;
+                                        if (val) router.push(`/room/${val}`);
+                                    }
+                                }}
+                            />
+                        </div>
 
                         {fullscreenSupported && (
                             <button
@@ -517,50 +536,27 @@ export default function Home() {
                     </div>
                 </header>
 
-                {lastRoomId && (
-                    <div className="sticky top-0 z-50 mb-6 py-2 -mt-2 bg-white dark:bg-black">
+                <div className="sticky top-0 z-50 mb-6 py-2 -mt-2 bg-white dark:bg-black space-y-4 shadow-[0_10px_10px_-10px_rgba(0,0,0,0.1)] dark:shadow-[0_10px_10px_-10px_rgba(255,255,255,0.05)]">
+                    {lastRoomId && (
                         <Link
                             href={`/room/${lastRoomId}`}
                             className="block w-full rounded-xl border-4 border-purple-500 bg-purple-100 p-4 text-center text-lg font-black text-purple-900 shadow-lg transition active:translate-x-[2px] active:translate-y-[2px] dark:border-purple-400 dark:bg-purple-900 dark:text-purple-100"
                         >
                             🎤 Повернутися на вечірку {lastRoomId}
                         </Link>
-                    </div>
-                )}
+                    )}
 
-                <section className="mb-6">
-                    <label className="mb-1 block text-sm font-bold">
-                        Приєднатися за кодом
-                    </label>
-                    <input
-                        type="number"
-                        placeholder="4-значний код"
-                        className="w-full rounded border-2 border-black bg-white px-3 py-2 text-base font-black tracking-widest text-black outline-none dark:border-white dark:bg-black dark:text-white"
-                        onChange={(e) => {
-                            if (e.target.value.length === 4) {
-                                router.push(`/room/${e.target.value}`);
-                            }
-                        }}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                                const val = (e.target as HTMLInputElement).value;
-                                if (val) router.push(`/room/${val}`);
-                            }
-                        }}
-                    />
-                </section>
-
-                <section className="mb-4">
-                    <label className="mb-1 block text-sm font-bold">
-                        Пошук
-                    </label>
-                    <input
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                        placeholder="Назва або виконавець..."
-                        className="w-full rounded border-2 border-black bg-white px-3 py-2 text-base text-black outline-none dark:border-white dark:bg-black dark:text-white"
-                    />
-                </section>
+                    <section>
+                        <div className="relative">
+                            <input
+                                value={query}
+                                onChange={(e) => setQuery(e.target.value)}
+                                placeholder="🔍 Пошук пісні або виконавця..."
+                                className="w-full rounded border-2 border-black bg-white px-3 py-2 text-base font-bold text-black outline-none transition-shadow focus:shadow-[4px_4px_0_0_#000] dark:border-white dark:bg-black dark:text-white dark:focus:shadow-[4px_4px_0_0_#fff]"
+                            />
+                        </div>
+                    </section>
+                </div>
 
                 {error ?
                     <section className="mb-4 rounded border-2 border-red-600 bg-red-50 p-3 text-sm dark:border-red-400 dark:bg-red-950">

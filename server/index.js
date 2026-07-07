@@ -10,6 +10,8 @@ const path = require("path");
 const {
     initDb,
     listSongs,
+    listAllSongs,
+    getSongByTitleAndArtist,
     getSongById,
     ensureMigrations,
     createRoom,
@@ -43,7 +45,7 @@ async function main() {
     initDb(DB_PATH);
 
     const app = express();
-    app.use(express.json({ limit: "1mb" }));
+    app.use(express.json({ limit: "50mb" }));
 
     const server = http.createServer(app);
 
@@ -111,6 +113,56 @@ async function main() {
                     res.json({ ok: true });
                 } catch {
                     res.status(500).json({ error: "Failed to add song" });
+                }
+            });
+
+            // GET /api/songs/export
+            app.get("/api/songs/export", (req, res) => {
+                if (req.headers["x-admin-password"] !== ADMIN_PASSWORD) {
+                    return res.status(401).json({ error: "Unauthorized" });
+                }
+                try {
+                    const songs = listAllSongs();
+                    res.json({ songs });
+                } catch {
+                    res.status(500).json({ error: "Failed to export songs" });
+                }
+            });
+
+            // POST /api/songs/import
+            app.post("/api/songs/import", (req, res) => {
+                if (req.headers["x-admin-password"] !== ADMIN_PASSWORD) {
+                    return res.status(401).json({ error: "Unauthorized" });
+                }
+                try {
+                    const songs = Array.isArray(req.body?.songs) ? req.body.songs : [];
+                    let imported = 0;
+                    let skipped = 0;
+
+                    for (const song of songs) {
+                        const title = typeof song.title === "string" ? song.title.trim() : "";
+                        const artist = typeof song.artist === "string" ? song.artist.trim() : "";
+                        const content = typeof song.content === "string" ? song.content : null;
+
+                        if (!title || !artist || !content) {
+                            skipped++;
+                            continue;
+                        }
+
+                        const exists = getSongByTitleAndArtist(title, artist);
+                        if (exists) {
+                            skipped++;
+                            continue;
+                        }
+
+                        addSong({ title, artist, content });
+                        imported++;
+                    }
+
+                    res.json({ ok: true, imported, skipped });
+                } catch (e) {
+                    console.error("Import error", e);
+                    res.status(500).json({ error: "Failed to import songs" });
                 }
             });
 

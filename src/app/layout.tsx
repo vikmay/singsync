@@ -24,11 +24,11 @@ export default function RootLayout({
     children: React.ReactNode;
 }>) {
     return (
-        <html lang="en" className="dark overflow-x-hidden">
+        <html lang="en" className="dark overflow-x-clip">
             <head>
                 <link rel="manifest" href="/manifest.json" />
             </head>
-            <body className={`${inter.className} overflow-x-hidden w-full`}>
+            <body className={`${inter.className} overflow-x-clip w-full`}>
                 <SwRegister />
                 <GlobalWakeLock />
                 {children}

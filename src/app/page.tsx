@@ -139,6 +139,77 @@ export default function Home() {
     const [socket, setSocket] = useState<Socket | null>(null);
     const [leaderRequestCountdown, setLeaderRequestCountdown] = useState(0);
     const leaderIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [importing, setImporting] = useState(false);
+
+    async function handleExport() {
+        try {
+            const adminPassword = localStorage.getItem('admin_pwd') || '';
+            const res = await fetch('/api/songs/export', {
+                headers: { 'x-admin-password': adminPassword }
+            });
+            if (!res.ok) throw new Error('Помилка експорту');
+            const data = await res.json();
+            
+            const blob = new Blob([JSON.stringify(data.songs, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `singsync-backup-${new Date().toISOString().slice(0, 10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            showToast(e instanceof Error ? e.message : 'Невідома помилка');
+        }
+    }
+
+    async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        
+        setImporting(true);
+        try {
+            const text = await file.text();
+            const parsed = JSON.parse(text);
+            
+            const songsToImport = Array.isArray(parsed) ? parsed : parsed.songs;
+            if (!songsToImport || !Array.isArray(songsToImport)) {
+                throw new Error('Неправильний формат файлу. Очікувався масив пісень.');
+            }
+
+            const adminPassword = localStorage.getItem('admin_pwd') || '';
+            const res = await fetch('/api/songs/import', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-admin-password': adminPassword
+                },
+                body: JSON.stringify({ songs: songsToImport })
+            });
+
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData.error || 'Помилка імпорту');
+            }
+
+            const data = await res.json();
+            showToast(`Успішно імпортовано: ${data.imported}. Пропущено існуючих: ${data.skipped}.`);
+            
+            // Reload songs
+            const qs = trimmedQuery ? `?q=${encodeURIComponent(trimmedQuery)}` : '';
+            const songsRes = await fetch(`/api/songs${qs}`);
+            if (songsRes.ok) {
+                const songsData = await songsRes.json();
+                setSongs(songsData.songs);
+            }
+
+        } catch (e) {
+            showToast(e instanceof Error ? e.message : 'Невідома помилка');
+        } finally {
+            setImporting(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    }
 
     useEffect(() => {
         if (leaderRequestCountdown <= 0 && leaderIntervalRef.current) {
@@ -363,42 +434,11 @@ export default function Home() {
     return (
         <main className="min-h-screen bg-white text-black dark:bg-black dark:text-white">
             <div className="mx-auto max-w-xl p-4 pb-12">
-                <header className="mb-5">
+                <header className="mb-5 flex flex-col gap-4">
                     <div className="flex items-start justify-between gap-3">
-                        <div className="flex flex-wrap items-start gap-4">
-                            <div>
-                                <h1 className="text-3xl font-black tracking-tight">
-                                    SingSync
-                                </h1>
-                            </div>
-
-                            <div className="flex flex-wrap items-center gap-2 shrink-0">
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        if (songs.length === 0) {
-                                            showToast('Додайте хоча б одну пісню!');
-                                            return;
-                                        }
-                                        createRoomForSong(songs[0].id);
-                                    }}
-                                    className="rounded border-2 border-black bg-black px-3 py-2 text-sm font-black text-white transition active:translate-x-[1px] active:translate-y-[1px] dark:border-white dark:bg-white dark:text-black"
-                                    title="Створити вечірку та стати ведучим"
-                                >
-                                    Створити вечірку
-                                </button>
-                                {isAdmin && (
-                                    <Link
-                                        href="/add-song"
-                                        className="rounded border-2 border-black bg-white px-3 py-2 text-sm font-black text-black transition active:translate-x-[1px] active:translate-y-[1px] dark:border-white dark:bg-black dark:text-white"
-                                        title="Додати пісню"
-                                    >
-                                        Додати пісню
-                                    </Link>
-                                )}
-
-                            </div>
-                        </div>
+                        <h1 className="text-3xl font-black tracking-tight">
+                            SingSync
+                        </h1>
 
                         {fullscreenSupported && (
                             <button
@@ -417,6 +457,62 @@ export default function Home() {
                                     </svg>
                                 }
                             </button>
+                        )}
+                    </div>
+
+                    <div className={`grid gap-2 w-full ${isAdmin ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (songs.length === 0) {
+                                    showToast('Додайте хоча б одну пісню!');
+                                    return;
+                                }
+                                createRoomForSong(songs[0].id);
+                            }}
+                            className="flex items-center justify-center rounded border-2 border-black bg-black px-3 py-2 text-sm font-black text-white transition active:translate-x-[1px] active:translate-y-[1px] dark:border-white dark:bg-white dark:text-black text-center"
+                            title="Створити вечірку та стати ведучим"
+                        >
+                            Створити вечірку
+                        </button>
+
+                        {isAdmin && (
+                            <>
+                                <Link
+                                    href="/add-song"
+                                    className="flex items-center justify-center rounded border-2 border-black bg-white px-3 py-2 text-sm font-black text-black transition active:translate-x-[1px] active:translate-y-[1px] dark:border-white dark:bg-black dark:text-white text-center"
+                                    title="Додати пісню"
+                                >
+                                    Додати пісню
+                                </Link>
+
+                                <button
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={importing}
+                                    className="flex items-center justify-center rounded border-2 border-green-600 bg-green-50 px-3 py-2 text-sm font-black text-green-900 transition active:translate-x-[1px] active:translate-y-[1px] dark:border-green-400 dark:bg-green-950 dark:text-green-100 text-center disabled:opacity-50"
+                                    title="Імпортувати базу"
+                                >
+                                    {importing ? "⏳..." : "📥 Імпорт"}
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={handleExport}
+                                    className="flex items-center justify-center rounded border-2 border-blue-600 bg-blue-50 px-3 py-2 text-sm font-black text-blue-900 transition active:translate-x-[1px] active:translate-y-[1px] dark:border-blue-400 dark:bg-blue-950 dark:text-blue-100 text-center"
+                                    title="Експортувати базу"
+                                >
+                                    📤 Експорт
+                                </button>
+                                
+                                <input 
+                                    type="file" 
+                                    accept=".json" 
+                                    ref={fileInputRef} 
+                                    style={{ display: 'none' }} 
+                                    onChange={handleImport} 
+                                />
+                            </>
                         )}
                     </div>
                 </header>

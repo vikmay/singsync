@@ -126,6 +126,22 @@ function listSongs({ query } = {}) {
         )
         .all(params);
 }
+function listAllSongs() {
+    return db
+        .prepare(
+            "SELECT id, title, artist, content, created_at FROM songs ORDER BY created_at DESC"
+        )
+        .all();
+}
+
+function getSongByTitleAndArtist(title, artist) {
+    const t = safeText(title);
+    const a = safeText(artist);
+    if (!t || !a) return null;
+    return db
+        .prepare("SELECT id FROM songs WHERE ua_lower(title) = ua_lower(@title) AND ua_lower(artist) = ua_lower(@artist)")
+        .get({ title: t, artist: a });
+}
 
 function getSongById(id) {
     const song = db
@@ -301,6 +317,8 @@ module.exports = {
     ensureMigrations,
     initDb,
     listSongs,
+    listAllSongs,
+    getSongByTitleAndArtist,
     getSongById,
     addSong,
     updateSong,

@@ -87,6 +87,19 @@ function deleteRoomState(roomId) {
     rooms.delete(roomId);
 }
 
+function cleanupOldMemoryRooms() {
+    const now = Date.now();
+    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+    for (const [roomId, state] of rooms.entries()) {
+        if (now - state.timestamp > TWENTY_FOUR_HOURS) {
+            rooms.delete(roomId);
+        }
+    }
+}
+
+// Запускаємо очищення раз на годину
+setInterval(cleanupOldMemoryRooms, 60 * 60 * 1000);
+
 module.exports = {
     getRoomStateSnapshot,
     setLeader,

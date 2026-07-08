@@ -460,7 +460,7 @@ export default function RoomPage() {
         });
         s.on('room_deleted', () => {
             localStorage.removeItem('last_room_id');
-            showToast("Ця кімната була видалена.");
+            showToast("Ця вечірка була видалена.");
             router.push('/');
         });
 
@@ -489,7 +489,7 @@ export default function RoomPage() {
                 
                 if (res.status === 404) {
                     localStorage.removeItem('last_room_id');
-                    showToast("Ця кімната більше не існує.");
+                    showToast("Ця вечірка більше не існує.");
                     router.push('/');
                     return;
                 }

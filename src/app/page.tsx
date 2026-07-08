@@ -65,7 +65,7 @@ function ActiveRoomItem({ room, isAdmin, onDelete }: ActiveRoomItemProps) {
             <div className="absolute right-0 top-0 bottom-0 flex w-20 items-center justify-center bg-red-500">
                 <button
                     onClick={async () => {
-                        if (await showConfirm(`Ви впевнені, що хочете видалити кімнату ${room.roomId}?`)) {
+                        if (await showConfirm(`Ви впевнені, що хочете видалити вечірку ${room.roomId}?`)) {
                             onDelete(room.roomId);
                         } else {
                             setOffset(0);
@@ -87,19 +87,19 @@ function ActiveRoomItem({ room, isAdmin, onDelete }: ActiveRoomItemProps) {
                     href={`/room/${room.roomId}`}
                     className="flex items-center gap-2 rounded border-2 border-green-600 bg-green-50 px-3 py-2 text-sm text-green-900 transition active:translate-x-[1px] active:translate-y-[1px] hover:bg-green-100 dark:border-green-400 dark:bg-green-950 dark:text-green-100 dark:hover:bg-green-900 shadow-[3px_3px_0px_#16a34a] dark:shadow-[3px_3px_0px_#4ade80] flex-1"
                 >
-                    <span className="font-bold text-lg">Кімната №</span>
+                    <span className="font-bold text-lg">Вечірка №</span>
                     <span className="text-xl leading-none font-black text-red-600 dark:text-red-400">{room.roomId}</span>
                 </Link>
             </div>
             {isAdmin && offset === 0 && (
                  <button
                  onClick={async () => {
-                     if (await showConfirm(`Ви впевнені, що хочете видалити кімнату ${room.roomId}?`)) {
+                     if (await showConfirm(`Ви впевнені, що хочете видалити вечірку ${room.roomId}?`)) {
                          onDelete(room.roomId);
                      }
                  }}
                  className="absolute right-[-4px] top-[-4px] hidden sm:flex items-center justify-center w-6 h-6 rounded-full bg-red-500 text-white font-bold text-xs opacity-0 hover:opacity-100 transition-opacity z-10"
-                 title="Видалити кімнату"
+                 title="Видалити вечірку"
              >
                  ✕
              </button>

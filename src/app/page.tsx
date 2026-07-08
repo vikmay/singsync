@@ -61,7 +61,7 @@ function ActiveRoomItem({ room, isAdmin, onDelete }: ActiveRoomItemProps) {
     }
 
     return (
-        <div className="relative overflow-hidden rounded">
+        <div className="group relative overflow-hidden rounded">
             <div className="absolute right-0 top-0 bottom-0 flex w-20 items-center justify-center bg-red-500">
                 <button
                     onClick={async () => {
@@ -98,7 +98,7 @@ function ActiveRoomItem({ room, isAdmin, onDelete }: ActiveRoomItemProps) {
                          onDelete(room.roomId);
                      }
                  }}
-                 className="absolute right-[-4px] top-[-4px] hidden sm:flex items-center justify-center w-6 h-6 rounded-full bg-red-500 text-white font-bold text-xs opacity-0 hover:opacity-100 transition-opacity z-10"
+                 className="absolute right-[-4px] top-[-4px] flex items-center justify-center w-6 h-6 rounded-full bg-red-500 text-white font-bold text-xs opacity-60 group-hover:opacity-100 transition-opacity z-10"
                  title="Видалити вечірку"
              >
                  ✕

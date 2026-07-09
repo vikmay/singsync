@@ -389,8 +389,10 @@ export default function VisualChordEditor({
                                 }
                             }}
                         >
-                            {segments.map((seg, idx) => (
-                                <span key={idx} className="inline-flex flex-col items-start max-w-full">
+                            {segments.map((seg, idx) => {
+                                const isTextEmptyOrSpaces = seg.text.trim().length === 0;
+                                return (
+                                <span key={idx} className={`inline-flex flex-col items-start max-w-full ${isTextEmptyOrSpaces && seg.chord ? 'pr-3' : ''}`}>
                                     {showChords && (
                                         <span className="font-black leading-tight text-blue-700 dark:text-blue-400 whitespace-pre flex items-center justify-center relative group/chord" style={{ fontSize: `${18 * fontScale}px`, minHeight: '1.2em' }}>
                                             {seg.chord && (
@@ -422,7 +424,8 @@ export default function VisualChordEditor({
                                         ))}
                                     </span>
                                 </span>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 );

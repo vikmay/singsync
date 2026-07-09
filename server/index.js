@@ -240,9 +240,22 @@ async function main() {
                     const hostname = new URL(url).hostname;
 
                     if (hostname.includes('pisennyk')) {
-                        title = $('h1').text().replace(/акорди|текст/gi, '').trim();
-                        artist = $('.song-artist').text().trim() || $('.breadcrumbs a').eq(1).text().trim() || $('a[href^="/artists/"]').first().text().trim();
-                        rawLines = $('.song-text').text() || $('pre').text();
+                        title = $('h1 strong').text().trim() || $('h1').contents().first().text().trim() || $('h1').text().replace(/акорди|текст/gi, '').trim();
+                        artist = $('h4.my-auto').first().text().trim() || $('.song-artist').text().trim() || $('.breadcrumbs a').eq(1).text().trim() || $('a[href^="/artists/"]').first().text().trim();
+                        let $content = $('.interpretation-content');
+                        if ($content.length) {
+                            $content.find('code').each((i, el) => {
+                                $(el).replaceWith('[' + $(el).text().trim() + ']');
+                            });
+                            // Browser treats raw newlines in HTML as spaces, so we must replace them
+                            // before we convert <br> to actual \n, otherwise we get double newlines and broken lines.
+                            let innerHtml = $content.html().replace(/\n/g, ' ').replace(/\r/g, '');
+                            $content.html(innerHtml);
+                            $content.find('br').replaceWith('\n');
+                            rawLines = $content.text().replace(/ {2,}/g, ' '); // Clean up double spaces
+                        } else {
+                            rawLines = $('.song-text').text() || $('pre').text();
+                        }
                     } else if (hostname.includes('chords.com.ua')) {
                         const h1 = $('h1').text().trim();
                         const parts = h1.split('-');

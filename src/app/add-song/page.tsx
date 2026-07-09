@@ -83,6 +83,25 @@ export default function AddSongPage() {
             resetHistory(data.rawLines || '');
             setTransposeOffset(0);
             
+            // Automatically calculate an optimal font scale so long lines don't wrap on mobile
+            let maxLen = 0;
+            const parsedLines = parseRawSong(data.rawLines || '');
+            for (const l of parsedLines) {
+                if (l.text && l.text.length > maxLen) {
+                    maxLen = l.text.length;
+                }
+            }
+            // A standard mobile screen fits about 22 characters at 1.0 scale (28px font) without breaking
+            // Adjust the scale to fit the longest line.
+            if (maxLen > 0) {
+                let optimalScale = 22 / maxLen;
+                if (optimalScale > 1.0) optimalScale = 1.0;
+                if (optimalScale < 0.3) optimalScale = 0.3; // Allow it to shrink more
+                setDefaultFontScale(Number(optimalScale.toFixed(2)));
+            } else {
+                setDefaultFontScale(1.0);
+            }
+            
             // Switch to manual tab to show the result
             setActiveTab('manual');
         } catch (e) {

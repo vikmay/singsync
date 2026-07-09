@@ -69,7 +69,7 @@ export function parseRawSong(rawText: string): ParsedLine[] {
             
             result.push({
                 chords: chordsStr.trim(),
-                text: text.trimEnd(),
+                text: text,
                 placements
             });
             continue;

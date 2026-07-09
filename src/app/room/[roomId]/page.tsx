@@ -169,17 +169,22 @@ function LineBlock({ line, transposeDelta, fontScale, showChords }: { line: Line
             {segments.map((seg, idx) => {
                 const firstChar = seg.text.charAt(0);
                 const restText = seg.text.slice(1);
+                const transposedChord = seg.chord ? transposeLineChords(seg.chord, transposeDelta) : '';
+                const isTextEmptyOrSpaces = seg.text.trim().length === 0;
+                // Give extra space if it's just spaces, so chords don't overlap
+                const extraPadding = (isTextEmptyOrSpaces && transposedChord) ? `${transposedChord.length * 0.5}em` : '0';
+
                 return (
                     <span key={idx} className="inline">
                         <span className="whitespace-nowrap">
                             {showChords && (
                                 <span className="inline-block w-0 h-0 relative align-baseline">
                                     <span className="absolute bottom-0 left-0 font-black leading-tight text-blue-700 dark:text-blue-400 whitespace-pre flex items-center justify-center z-10" style={{ fontSize: `${22 * fontScale}px`, transform: `translateY(-1em)` }}>
-                                        <span className="text-center min-w-[1ch]">{seg.chord ? transposeLineChords(seg.chord, transposeDelta) : ''}</span>
+                                        <span className="text-center min-w-[1ch]">{transposedChord}</span>
                                     </span>
                                 </span>
                             )}
-                            <span className={`font-black text-black dark:text-white ${firstChar === ' ' ? 'whitespace-pre' : 'whitespace-pre-wrap'}`} style={{ fontSize: `${28 * fontScale}px`, lineHeight: showChords ? '2.2' : '1.2' }}>
+                            <span className={`font-black text-black dark:text-white ${firstChar === ' ' ? 'whitespace-pre' : 'whitespace-pre-wrap'}`} style={{ fontSize: `${28 * fontScale}px`, lineHeight: showChords ? '2.2' : '1.2', paddingRight: extraPadding }}>
                                 {firstChar}
                             </span>
                         </span>

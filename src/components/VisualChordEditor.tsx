@@ -394,7 +394,7 @@ export default function VisualChordEditor({
                                 return (
                                 <span key={idx} className={`inline-flex flex-col items-start max-w-full ${isTextEmptyOrSpaces && seg.chord ? 'pr-3' : ''}`}>
                                     {showChords && (
-                                        <span className="font-black leading-tight text-blue-700 dark:text-blue-400 whitespace-pre flex items-center justify-center relative group/chord" style={{ fontSize: `${18 * fontScale}px`, minHeight: '1.2em' }}>
+                                        <span className="font-black leading-tight text-blue-700 dark:text-blue-400 whitespace-pre flex items-center justify-center relative group/chord" style={{ fontSize: `calc(min(${4.5 * fontScale}vw, ${20.16 * fontScale}px))`, minHeight: '1.2em' }}>
                                             {seg.chord && (
                                                 <>
                                                     <button onClick={() => moveChord(lineIndex, seg.pIdx, -1)} className="absolute right-full opacity-0 group-hover/chord:opacity-100 px-1 hover:bg-black/10 rounded transition">&lt;</button>
@@ -410,7 +410,7 @@ export default function VisualChordEditor({
                                             )}
                                         </span>
                                     )}
-                                    <span className="font-black leading-tight text-black dark:text-white whitespace-pre-wrap break-words max-w-full" style={{ fontSize: `${28 * fontScale}px`, minHeight: '1.2em' }}>
+                                    <span className="font-black leading-tight text-black dark:text-white whitespace-pre-wrap break-words max-w-full" style={{ fontSize: `calc(min(${7.5 * fontScale}vw, ${33.6 * fontScale}px))`, minHeight: '1.2em' }}>
                                         {seg.text.split('').map((char, charOffset) => (
                                             <span 
                                                 key={charOffset}

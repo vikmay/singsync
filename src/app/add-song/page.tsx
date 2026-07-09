@@ -438,7 +438,7 @@ export default function AddSongPage() {
                                             ? 'border-orange-500 bg-white text-black dark:border-orange-500 dark:bg-black dark:text-white' 
                                             : 'border-black bg-black/5 text-black dark:border-white dark:bg-white/5 dark:text-white'
                                     }`}
-                                    style={{ fontSize: `${28 * defaultFontScale}px` }}
+                                    style={{ fontSize: `calc(min(${7.5 * defaultFontScale}vw, ${33.6 * defaultFontScale}px))` }}
                                     spellCheck={false}
                                 />
                             )}

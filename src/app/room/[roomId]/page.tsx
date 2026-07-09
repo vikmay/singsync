@@ -179,16 +179,16 @@ function LineBlock({ line, transposeDelta, fontScale, showChords }: { line: Line
                         <span className="whitespace-nowrap">
                             {showChords && (
                                 <span className="inline-block w-0 h-0 relative align-baseline">
-                                    <span className="absolute bottom-0 left-0 font-black leading-tight text-blue-700 dark:text-blue-400 whitespace-pre flex items-center justify-center z-10" style={{ fontSize: `${22 * fontScale}px`, transform: `translateY(-1em)` }}>
+                                    <span className="absolute bottom-0 left-0 font-black leading-tight text-blue-700 dark:text-blue-400 whitespace-pre flex items-center justify-center z-10" style={{ fontSize: `calc(min(${5.5 * fontScale}vw, ${24.64 * fontScale}px))`, transform: `translateY(-1em)` }}>
                                         <span className="text-center min-w-[1ch]">{transposedChord}</span>
                                     </span>
                                 </span>
                             )}
-                            <span className={`font-black text-black dark:text-white ${firstChar === ' ' ? 'whitespace-pre' : 'whitespace-pre-wrap'}`} style={{ fontSize: `${28 * fontScale}px`, lineHeight: showChords ? '2.2' : '1.2', paddingRight: extraPadding }}>
+                            <span className={`font-black text-black dark:text-white ${firstChar === ' ' ? 'whitespace-pre' : 'whitespace-pre-wrap'}`} style={{ fontSize: `calc(min(${7.5 * fontScale}vw, ${33.6 * fontScale}px))`, lineHeight: showChords ? '2.2' : '1.2', paddingRight: extraPadding }}>
                                 {firstChar}
                             </span>
                         </span>
-                        <span className={`font-black text-black dark:text-white ${restText.trim() === '' ? 'whitespace-pre' : 'whitespace-pre-wrap'}`} style={{ fontSize: `${28 * fontScale}px`, lineHeight: showChords ? '2.2' : '1.2' }}>
+                        <span className={`font-black text-black dark:text-white ${restText.trim() === '' ? 'whitespace-pre' : 'whitespace-pre-wrap'}`} style={{ fontSize: `calc(min(${7.5 * fontScale}vw, ${33.6 * fontScale}px))`, lineHeight: showChords ? '2.2' : '1.2' }}>
                             {restText}
                         </span>
                     </span>
@@ -840,9 +840,15 @@ export default function RoomPage() {
                 if (docEl.requestFullscreen) {
                     await docEl.requestFullscreen();
                     setFullscreen(true);
+                    if (screen.orientation && screen.orientation.lock) {
+                        screen.orientation.lock('portrait').catch(() => {});
+                    }
                 } else if (docEl.webkitRequestFullscreen) {
                     await docEl.webkitRequestFullscreen();
                     setFullscreen(true);
+                    if (screen.orientation && screen.orientation.lock) {
+                        screen.orientation.lock('portrait').catch(() => {});
+                    }
                 } else {
                     showToast('Повноекранний режим не підтримується на цьому пристрої (iOS)');
                 }
@@ -853,6 +859,9 @@ export default function RoomPage() {
                     await (document as any).webkitExitFullscreen();
                 }
                 setFullscreen(false);
+                if (screen.orientation && screen.orientation.unlock) {
+                    screen.orientation.unlock();
+                }
             }
         } catch {
             // ignore
@@ -862,8 +871,8 @@ export default function RoomPage() {
     return (
         <main className="flex h-[100dvh] flex-col overflow-hidden bg-white text-black dark:bg-black dark:text-white">
             <div className="mx-auto flex h-full w-full max-w-md flex-col px-4 pt-3 pb-0 border-x-2 border-black/5 dark:border-white/5">
-                <header className="mb-2 flex items-start justify-between gap-3">
-                    <div className="flex flex-wrap items-center gap-3">
+                <header className="mb-2 flex items-center justify-between gap-2 overflow-hidden">
+                    <div className="flex flex-nowrap overflow-x-auto no-scrollbar items-center gap-2 pb-1 shrink pr-2">
                         <Link
                             href="/"
                             className="relative h-10 w-10 shrink-0 transition active:translate-x-[1px] active:translate-y-[1px]"

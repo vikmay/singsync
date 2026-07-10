@@ -89,7 +89,7 @@ export default function SongPage() {
 
     return (
         <main className="min-h-screen bg-white text-black dark:bg-black dark:text-white">
-            <div className="mx-auto max-w-md px-3 py-3 border-x-2 border-black/5 dark:border-white/5 min-h-screen">
+            <div className="mx-auto max-w-md md:max-w-3xl px-3 py-3 border-x-2 border-black/5 dark:border-white/5 min-h-screen">
                 <header className="mb-3">
                     <div className="flex items-baseline justify-between gap-3">
                         <div className="min-w-0">

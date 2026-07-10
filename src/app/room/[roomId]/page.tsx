@@ -985,17 +985,10 @@ export default function RoomPage() {
                                     }
                                 }
                             }}
-                            className="flex h-10 shrink-0 items-center gap-2 text-base font-black text-blue-700 bg-blue-100 px-3 rounded-lg border-2 border-blue-200 transition active:translate-x-[1px] active:translate-y-[1px] dark:bg-blue-900/50 dark:text-blue-300 dark:border-blue-700/50 tracking-widest"
+                            className="flex h-10 shrink-0 items-center justify-center text-lg font-black text-blue-700 bg-blue-100 px-3 rounded-lg border-2 border-blue-200 transition active:translate-x-[1px] active:translate-y-[1px] dark:bg-blue-900/50 dark:text-blue-300 dark:border-blue-700/50 tracking-widest"
                             title="Поділитися"
                         >
-                            <span>{roomId}</span>
-                            <svg viewBox="0 0 24 24" className="w-4 h-4 fill-none stroke-current stroke-2" strokeLinecap="round" strokeLinejoin="round">
-                                <circle cx="18" cy="5" r="3"></circle>
-                                <circle cx="6" cy="12" r="3"></circle>
-                                <circle cx="18" cy="19" r="3"></circle>
-                                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
-                                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
-                            </svg>
+                            {roomId}
                         </button>
                         
                         <button

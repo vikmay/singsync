@@ -96,7 +96,7 @@ function listSongs({ query } = {}) {
     if (!q) {
         return db
             .prepare(
-                "SELECT id, title, artist, created_at FROM songs ORDER BY created_at DESC LIMIT 200"
+                "SELECT id, title, artist, created_at FROM songs ORDER BY ua_lower(title) ASC, ua_lower(artist) ASC LIMIT 200"
             )
             .all();
     }
@@ -120,7 +120,7 @@ function listSongs({ query } = {}) {
       SELECT id, title, artist, created_at
       FROM songs
       WHERE ${whereClause}
-      ORDER BY created_at DESC
+      ORDER BY ua_lower(title) ASC, ua_lower(artist) ASC
       LIMIT 200
     `
         )

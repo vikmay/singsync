@@ -440,11 +440,11 @@ export default function Home() {
                             SingSync
                         </h1>
 
-                        <div className="flex-grow max-w-[200px]">
+                        <div className="w-32 shrink-0 relative">
                             <input
                                 type="number"
-                                placeholder="Код (4 цифри)"
-                                className="w-full rounded border-2 border-black bg-white px-3 py-2 text-base font-black tracking-widest text-center text-black outline-none transition-shadow focus:shadow-[4px_4px_0_0_#000] dark:border-white dark:bg-black dark:text-white dark:focus:shadow-[4px_4px_0_0_#fff]"
+                                placeholder="🎤 КОД"
+                                className="w-full rounded border-2 border-black bg-white px-2 py-2 text-base font-black tracking-widest text-center text-black outline-none transition-shadow focus:shadow-[4px_4px_0_0_#000] dark:border-white dark:bg-black dark:text-white dark:focus:shadow-[4px_4px_0_0_#fff]"
                                 onChange={(e) => {
                                     if (e.target.value.length === 4) {
                                         router.push(`/room/${e.target.value}`);

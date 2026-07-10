@@ -42,10 +42,13 @@ export function parseRawSong(rawText: string): ParsedLine[] {
 
         // 1. If it's the old CHORDS|Text format, handle it gracefully.
         if (line.includes('|')) {
-            const [chordsPart, ...textParts] = line.split('|');
-            const textPart = textParts.join('|');
-            result.push({ chords: chordsPart.trim(), text: textPart.trim() });
-            continue;
+            const pipeIndex = line.indexOf('|');
+            const leftSide = line.slice(0, pipeIndex).trim();
+            if (leftSide === '' || isChordLine(leftSide)) {
+                const textPart = line.slice(pipeIndex + 1);
+                result.push({ chords: leftSide, text: textPart });
+                continue;
+            }
         }
 
         // 2. ChordPro format check [Am]Hello [C]World

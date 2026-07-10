@@ -294,7 +294,7 @@ export default function AddSongPage() {
                                     <button 
                                         type="button"
                                         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border-2 border-black/20 bg-black/5 text-lg font-black transition active:bg-black/20 dark:border-white/20 dark:bg-white/10 dark:active:bg-white/20"
-                                        onClick={() => setDefaultFontScale(s => Math.max(0.5, Number((s - 0.1).toFixed(1))))}
+                                        onClick={() => setDefaultFontScale(s => Math.max(0.3, Number((s - 0.1).toFixed(1))))}
                                         title="Зменшити"
                                     >
                                         -

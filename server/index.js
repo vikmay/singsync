@@ -102,6 +102,11 @@ async function main() {
                     if (!artist) return res.status(400).json({ error: "artist is required" });
                     if (lines.length === 0) return res.status(400).json({ error: "lines are required" });
 
+                    const exists = getSongByTitleAndArtist(title, artist);
+                    if (exists) {
+                        return res.status(409).json({ error: "Пісня з такою назвою та виконавцем вже існує!" });
+                    }
+
                     const content = JSON.stringify({
                         version: 1,
                         lines,

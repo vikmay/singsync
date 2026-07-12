@@ -5,6 +5,7 @@ export type SongContentV1 = {
         text: string;
     }>;
     defaultFontScale?: number;
+    defaultAutoScrollSpeed?: number;
 };
 
 export type ParsedSongContent = SongContentV1 | null;

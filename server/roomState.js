@@ -22,6 +22,8 @@ function getOrCreateRoom(roomId) {
         scrollPosition: { lineIndex: 0, offsetPercent: 0 },
         transposeDelta: 0,
         proposal: null,
+        isAutoScrolling: false,
+        autoScrollSpeed: 0.1,
         timestamp: Date.now(),
     };
     rooms.set(roomId, state);
@@ -83,6 +85,16 @@ function setProposal(roomId, proposal) {
     return room;
 }
 
+function updateAutoScroll(roomId, isAutoScrolling, autoScrollSpeed) {
+    const room = getOrCreateRoom(roomId);
+    room.isAutoScrolling = Boolean(isAutoScrolling);
+    if (typeof autoScrollSpeed === "number" && Number.isFinite(autoScrollSpeed)) {
+        room.autoScrollSpeed = autoScrollSpeed;
+    }
+    room.timestamp = Date.now();
+    return room;
+}
+
 function deleteRoomState(roomId) {
     rooms.delete(roomId);
 }
@@ -107,6 +119,7 @@ module.exports = {
     setTransposeDelta,
     updateScroll,
     setProposal,
+    updateAutoScroll,
     deleteRoomState,
     // exported for debugging/testing
     _rooms: rooms,

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { useHoldRepeat } from '@/hooks/useHoldRepeat';
 import { useParams, useRouter } from 'next/navigation';
 import { parseRawSong, parsedLinesToText, mapChordsToNewLines } from '@/lib/chordParser';
 import { transposeRawSong } from '@/lib/transpose';
@@ -38,11 +39,20 @@ export default function EditSongPage() {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const cursorRef = useRef<{ start: number, end: number } | null>(null);
     const [defaultFontScale, setDefaultFontScale] = useState(1.0);
+    const [defaultAutoScrollSpeed, setDefaultAutoScrollSpeed] = useState<number>(0.10);
     const [showChords, setShowChords] = useState(true);
     const [isEditingText, setIsEditingText] = useState(false);
     const [fullscreen, setFullscreen] = useState(false);
     const [fullscreenSupported, setFullscreenSupported] = useState(true);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+    const decreaseSpeedProps = useHoldRepeat(() => {
+        setDefaultAutoScrollSpeed(s => Math.max(0.01, Number((s - 0.01).toFixed(2))));
+    });
+
+    const increaseSpeedProps = useHoldRepeat(() => {
+        setDefaultAutoScrollSpeed(s => Math.min(1.0, Number((s + 0.01).toFixed(2))));
+    });
 
     const handleToggleChords = () => {
         if (!scrollContainerRef.current) {
@@ -116,8 +126,14 @@ export default function EditSongPage() {
                 
                 resetHistory(reconstructed);
                 
-                if (data.song.parsedContent?.defaultFontScale !== undefined) {
-                    setDefaultFontScale(data.song.parsedContent.defaultFontScale);
+                const parsed = data.song.parsedContent;
+                if (parsed?.defaultFontScale !== undefined) {
+                    setDefaultFontScale(parsed.defaultFontScale);
+                }
+                if (parsed?.defaultAutoScrollSpeed !== undefined) {
+                    setDefaultAutoScrollSpeed(parsed.defaultAutoScrollSpeed);
+                } else {
+                    setDefaultAutoScrollSpeed(0.10);
                 }
             } catch (e) {
                 if (!cancelled) setError(e instanceof Error ? e.message : 'Unknown error');
@@ -169,6 +185,7 @@ export default function EditSongPage() {
                     artist,
                     lines: parsedLines,
                     defaultFontScale,
+                    defaultAutoScrollSpeed,
                 }),
             });
 
@@ -296,6 +313,29 @@ export default function EditSongPage() {
                                         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border-2 border-black/20 bg-black/5 text-lg font-black transition active:bg-black/20 dark:border-white/20 dark:bg-white/10 dark:active:bg-white/20"
                                         onClick={() => setDefaultFontScale(s => Math.min(2.0, Number((s + 0.1).toFixed(1))))}
                                         title="Збільшити"
+                                    >
+                                        +
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col items-center">
+                                <div className="mb-1 text-xs font-bold text-center">Швидкість</div>
+                                <div className="flex items-center gap-2">
+                                    <button 
+                                        type="button"
+                                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border-2 border-black/20 bg-black/5 text-lg font-black transition active:bg-black/20 dark:border-white/20 dark:bg-white/10 dark:active:bg-white/20 touch-manipulation select-none"
+                                        title="Зменшити швидкість автоскролу"
+                                        {...decreaseSpeedProps}
+                                    >
+                                        -
+                                    </button>
+                                    <div className="text-sm font-black min-w-[3ch] text-center">{defaultAutoScrollSpeed.toFixed(2)}</div>
+                                    <button 
+                                        type="button"
+                                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border-2 border-black/20 bg-black/5 text-lg font-black transition active:bg-black/20 dark:border-white/20 dark:bg-white/10 dark:active:bg-white/20 touch-manipulation select-none"
+                                        title="Збільшити швидкість автоскролу"
+                                        {...increaseSpeedProps}
                                     >
                                         +
                                     </button>

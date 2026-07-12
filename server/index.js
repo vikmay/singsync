@@ -31,6 +31,9 @@ const {
     setSong,
     setProposal,
     deleteRoomState,
+    updateScroll,
+    updateAutoScroll,
+    setTransposeDelta,
 } = require("./roomState");
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
@@ -58,6 +61,9 @@ async function main() {
 
     registerSocketHandlers(io, {
         getRoomStateSnapshot,
+        updateScroll,
+        updateAutoScroll,
+        setTransposeDelta,
     });
 
     const nextApp = next({
@@ -97,6 +103,7 @@ async function main() {
                     const artist = typeof req.body?.artist === "string" ? req.body.artist.trim() : "";
                     const lines = Array.isArray(req.body?.lines) ? req.body.lines : [];
                     const defaultFontScale = typeof req.body?.defaultFontScale === "number" ? req.body.defaultFontScale : 1.0;
+                    const defaultAutoScrollSpeed = typeof req.body?.defaultAutoScrollSpeed === "number" ? req.body.defaultAutoScrollSpeed : 0.10;
 
                     if (!title) return res.status(400).json({ error: "title is required" });
                     if (!artist) return res.status(400).json({ error: "artist is required" });
@@ -111,6 +118,7 @@ async function main() {
                         version: 1,
                         lines,
                         defaultFontScale,
+                        defaultAutoScrollSpeed,
                     });
 
                     addSong({ title, artist, content });
@@ -182,6 +190,7 @@ async function main() {
                     const artist = typeof req.body?.artist === "string" ? req.body.artist.trim() : "";
                     const lines = Array.isArray(req.body?.lines) ? req.body.lines : [];
                     const defaultFontScale = typeof req.body?.defaultFontScale === "number" ? req.body.defaultFontScale : 1.0;
+                    const defaultAutoScrollSpeed = typeof req.body?.defaultAutoScrollSpeed === "number" ? req.body.defaultAutoScrollSpeed : 0.10;
 
                     if (!title) return res.status(400).json({ error: "title is required" });
                     if (!artist) return res.status(400).json({ error: "artist is required" });
@@ -191,6 +200,7 @@ async function main() {
                         version: 1,
                         lines,
                         defaultFontScale,
+                        defaultAutoScrollSpeed,
                     });
 
                     updateSong({ id, title, artist, content });
@@ -434,6 +444,8 @@ async function main() {
                     realtime: {
                         scrollPosition: snapshot2.scrollPosition,
                         speed: snapshot2.speed,
+                        isAutoScrolling: snapshot2.isAutoScrolling,
+                        autoScrollSpeed: snapshot2.autoScrollSpeed,
                         timestamp: snapshot2.timestamp,
                     },
                 });

@@ -1360,19 +1360,23 @@ export default function RoomPage() {
                         }}
                     >
                         <button 
-                            className="flex h-10 w-10 items-center justify-center rounded-lg border-2 border-black/20 bg-black/5 text-xl font-black transition active:bg-black/20 dark:border-white/20 dark:bg-white/10 dark:active:bg-white/20"
+                            className="flex h-10 w-10 items-center justify-center rounded-lg border-2 border-black/20 bg-black/5 font-black transition active:bg-black/20 dark:border-white/20 dark:bg-white/10 dark:active:bg-white/20"
                             onClick={(e) => { e.stopPropagation(); setFontScale(s => Math.max(0.5, s - 0.1)); interact(); }}
                             title="Зменшити шрифт"
                         >
-                            -
+                            <span className="text-sm">A</span>
                         </button>
-                        <span className="text-xs font-black opacity-50 uppercase tracking-wider">Шрифт</span>
+                        <div className="flex flex-1 items-center justify-center opacity-50 hover:opacity-100 transition-opacity">
+                            <svg viewBox="0 0 24 24" className="w-8 h-8 stroke-current fill-none stroke-2" style={{ strokeLinecap: 'round', strokeLinejoin: 'round' }}>
+                                {isHeaderHidden ? <path d="M6 9l6 6 6-6" /> : <path d="M18 15l-6-6-6 6" />}
+                            </svg>
+                        </div>
                         <button 
-                            className="flex h-10 w-10 items-center justify-center rounded-lg border-2 border-black/20 bg-black/5 text-xl font-black transition active:bg-black/20 dark:border-white/20 dark:bg-white/10 dark:active:bg-white/20"
+                            className="flex h-10 w-10 items-center justify-center rounded-lg border-2 border-black/20 bg-black/5 font-black transition active:bg-black/20 dark:border-white/20 dark:bg-white/10 dark:active:bg-white/20"
                             onClick={(e) => { e.stopPropagation(); setFontScale(s => Math.min(2, s + 0.1)); interact(); }}
                             title="Збільшити шрифт"
                         >
-                            +
+                            <span className="text-xl">A</span>
                         </button>
                     </div>
             {showLeaderSuccess && (

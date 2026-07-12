@@ -1000,10 +1000,79 @@ export default function RoomPage() {
         }
     });
 
+    const [isHeaderHidden, setIsHeaderHidden] = useState(false);
+    const [isControlsFaded, setIsControlsFaded] = useState(false);
+    const [lastInteractionTime, setLastInteractionTime] = useState(Date.now());
+
+
+
+    useEffect(() => {
+        let timeout: ReturnType<typeof setTimeout>;
+        if (!isHeaderHidden && isAutoScrolling) {
+            timeout = setTimeout(() => {
+                setIsHeaderHidden(true);
+            }, 5000);
+        }
+        return () => clearTimeout(timeout);
+    }, [isHeaderHidden, isAutoScrolling]);
+
+    useEffect(() => {
+        let timeout: ReturnType<typeof setTimeout>;
+        if (isHeaderHidden) {
+            timeout = setTimeout(() => {
+                setIsControlsFaded(true);
+            }, 5000);
+        } else {
+            setIsControlsFaded(false);
+        }
+        return () => clearTimeout(timeout);
+    }, [isHeaderHidden, lastInteractionTime]);
+
+    function interact() {
+        if (isHeaderHidden) {
+            setIsControlsFaded(false);
+            setLastInteractionTime(Date.now());
+        }
+    }
+
+    const headerTouchStartY = useRef(0);
+
+    const tonePressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const toneWasLongPressed = useRef(false);
+
+    function handleTonePressStart() {
+        toneWasLongPressed.current = false;
+        tonePressTimerRef.current = setTimeout(() => {
+            toneWasLongPressed.current = true;
+            changeTranspose(-transposeDelta);
+            if (showTransposeMenu) setShowTransposeMenu(false);
+            showToast("Тональність скинуто");
+        }, 1000);
+    }
+
+    function handleTonePressEnd() {
+        if (tonePressTimerRef.current) {
+            clearTimeout(tonePressTimerRef.current);
+            tonePressTimerRef.current = null;
+        }
+    }
+
     return (
-        <main className="flex h-[100dvh] flex-col overflow-hidden bg-white text-black dark:bg-black dark:text-white">
+        <main 
+            className="flex h-[100dvh] flex-col overflow-hidden bg-white text-black dark:bg-black dark:text-white"
+            onClick={interact}
+            onTouchStart={interact}
+        >
             <div className="mx-auto flex h-full w-full max-w-md md:max-w-3xl flex-col px-4 pt-3 pb-0 border-x-2 border-black/5 dark:border-white/5">
-                <header className="mb-2 flex items-center justify-between gap-2 overflow-hidden">
+                <div 
+                    className={`shrink-0 overflow-hidden transition-all ease-in-out ${isHeaderHidden ? 'duration-[2000ms] opacity-0 -mb-2' : 'duration-300 opacity-100 mb-0'}`}
+                    style={{ 
+                        display: 'grid', 
+                        gridTemplateRows: isHeaderHidden ? '0fr' : '1fr',
+                    }}
+                >
+                    <div className="overflow-hidden min-h-0">
+                        <header className="mb-2 flex items-center justify-between gap-2 overflow-hidden">
                     <div className="flex flex-nowrap overflow-x-auto scrollbar-hide items-center gap-2 pb-1 shrink pr-2">
                         <Link
                             href="/"
@@ -1208,7 +1277,14 @@ export default function RoomPage() {
                                 <div className="relative shrink-0 ml-auto">
                                     <button
                                         type="button"
+                                        onMouseDown={handleTonePressStart}
+                                        onMouseUp={handleTonePressEnd}
+                                        onMouseLeave={handleTonePressEnd}
+                                        onTouchStart={handleTonePressStart}
+                                        onTouchEnd={handleTonePressEnd}
+                                        onTouchCancel={handleTonePressEnd}
                                         onClick={() => {
+                                            if (toneWasLongPressed.current) return;
                                             if (showTransposeMenu) {
                                                 setShowTransposeMenu(false);
                                                 if (transposeTimeoutRef.current) clearTimeout(transposeTimeoutRef.current);
@@ -1217,16 +1293,16 @@ export default function RoomPage() {
                                                 resetTransposeTimeout();
                                             }
                                         }}
-                                        className={`flex h-10 px-3 shrink-0 items-center justify-center rounded-lg border-2 transition active:translate-x-[1px] active:translate-y-[1px] font-black text-sm select-none touch-manipulation ${
+                                        className={`flex h-10 w-14 px-2 shrink-0 items-center justify-center rounded-lg border-2 transition active:translate-x-[1px] active:translate-y-[1px] font-black text-sm select-none touch-manipulation ${
                                             showTransposeMenu ? 'border-blue-500 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : 'border-black bg-white dark:border-white dark:bg-black'
                                         }`}
                                         title="Тональність"
                                     >
-                                        Тон:{transposeDelta > 0 ? `+${transposeDelta}` : transposeDelta}
+                                        {transposeDelta > 0 ? `+${transposeDelta}` : transposeDelta}
                                     </button>
                                     
                                     {showTransposeMenu && (
-                                        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-50 flex h-10 items-center rounded-lg border-2 border-black bg-white font-black shadow-[3px_3px_0px_rgba(0,0,0,1)] dark:border-white dark:bg-black dark:shadow-[3px_3px_0px_rgba(255,255,255,1)]">
+                                        <div className="absolute top-0 right-full mr-3 z-50 flex h-10 items-center rounded-lg border-2 border-black bg-white font-black dark:border-white dark:bg-black">
                                             <button
                                                 type="button"
                                                 onClick={() => changeTranspose(-1)}
@@ -1271,9 +1347,22 @@ export default function RoomPage() {
                         </div>
                     </div>
                 </section>
+                    </div>
+                </div>
 
                 <section className="flex flex-1 flex-col overflow-hidden rounded border-2 border-black bg-white dark:border-white dark:bg-black mb-2">
-                    <div className="flex items-center justify-between border-b-2 border-black/10 px-4 py-2 dark:border-white/10 shrink-0">
+                    <div 
+                        className="flex items-center justify-between border-b-2 border-black/10 px-4 py-2 dark:border-white/10 shrink-0 select-none touch-none cursor-pointer"
+                        onTouchStart={(e) => { headerTouchStartY.current = e.touches[0].clientY; interact(); }}
+                        onTouchMove={(e) => {
+                            const y = e.touches[0].clientY;
+                            if (y - headerTouchStartY.current > 20 && isHeaderHidden) {
+                                setIsHeaderHidden(false);
+                            } else if (headerTouchStartY.current - y > 20 && !isHeaderHidden) {
+                                setIsHeaderHidden(true);
+                            }
+                        }}
+                    >
                         <button 
                             className="flex h-10 w-10 items-center justify-center rounded-lg border-2 border-black/20 bg-black/5 text-xl font-black transition active:bg-black/20 dark:border-white/20 dark:bg-white/10 dark:active:bg-white/20"
                             onClick={() => setFontScale(s => Math.max(0.5, s - 0.1))}
@@ -1423,7 +1512,7 @@ export default function RoomPage() {
             )}
 
             {(isAutoScrolling && (isLeader || isDetached)) && (
-                <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/90 dark:bg-black/90 border-t-2 border-black/10 dark:border-white/10 backdrop-blur pb-2">
+                <div className={`fixed bottom-0 left-0 right-0 z-40 bg-white/90 dark:bg-black/90 border-t-2 border-black/10 dark:border-white/10 backdrop-blur pb-2 transition-opacity ${isControlsFaded ? 'duration-[2000ms] opacity-0 pointer-events-none' : 'duration-300 opacity-100'}`}>
                     <div className="mx-auto max-w-md md:max-w-3xl flex items-center gap-4 px-4 py-3">
                         <button
                             className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border-2 border-black/20 bg-black/5 text-2xl font-black transition active:bg-black/20 dark:border-white/20 dark:bg-white/10 dark:active:bg-white/20 touch-manipulation select-none"

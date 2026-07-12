@@ -1352,20 +1352,16 @@ export default function RoomPage() {
 
                 <section className="flex flex-1 flex-col overflow-hidden rounded border-2 border-black bg-white dark:border-white dark:bg-black mb-2">
                     <div 
-                        className="flex items-center justify-between border-b-2 border-black/10 px-4 py-2 dark:border-white/10 shrink-0 select-none touch-none cursor-pointer"
-                        onTouchStart={(e) => { headerTouchStartY.current = e.touches[0].clientY; interact(); }}
-                        onTouchMove={(e) => {
-                            const y = e.touches[0].clientY;
-                            if (y - headerTouchStartY.current > 20 && isHeaderHidden) {
-                                setIsHeaderHidden(false);
-                            } else if (headerTouchStartY.current - y > 20 && !isHeaderHidden) {
-                                setIsHeaderHidden(true);
-                            }
+                        className="flex items-center justify-between border-b-2 border-black/10 px-4 py-2 dark:border-white/10 shrink-0 select-none cursor-pointer"
+                        onTouchStart={() => { interact(); }}
+                        onClick={() => {
+                            setIsHeaderHidden(!isHeaderHidden);
+                            interact();
                         }}
                     >
                         <button 
                             className="flex h-10 w-10 items-center justify-center rounded-lg border-2 border-black/20 bg-black/5 text-xl font-black transition active:bg-black/20 dark:border-white/20 dark:bg-white/10 dark:active:bg-white/20"
-                            onClick={() => setFontScale(s => Math.max(0.5, s - 0.1))}
+                            onClick={(e) => { e.stopPropagation(); setFontScale(s => Math.max(0.5, s - 0.1)); interact(); }}
                             title="Зменшити шрифт"
                         >
                             -
@@ -1373,7 +1369,7 @@ export default function RoomPage() {
                         <span className="text-xs font-black opacity-50 uppercase tracking-wider">Шрифт</span>
                         <button 
                             className="flex h-10 w-10 items-center justify-center rounded-lg border-2 border-black/20 bg-black/5 text-xl font-black transition active:bg-black/20 dark:border-white/20 dark:bg-white/10 dark:active:bg-white/20"
-                            onClick={() => setFontScale(s => Math.min(2, s + 0.1))}
+                            onClick={(e) => { e.stopPropagation(); setFontScale(s => Math.min(2, s + 0.1)); interact(); }}
                             title="Збільшити шрифт"
                         >
                             +

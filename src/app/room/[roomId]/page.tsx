@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useLayoutEffect } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useHoldRepeat } from '@/hooks/useHoldRepeat';
 import type { SongContentV1 } from '@/types/song';
 import { transposeLineChords } from '@/lib/transpose';
 import { getUserId } from '@/lib/user';
@@ -248,6 +249,7 @@ export default function RoomPage() {
 
     const [fontScale, setFontScale] = useState(1);
     const scrollRef = useRef<HTMLDivElement | null>(null);
+    const contentRef = useRef<HTMLDivElement | null>(null);
     const animatingRef = useRef(false);
     const rafRef = useRef<number | null>(null);
     const lastEmitRef = useRef<number>(0);
@@ -256,6 +258,12 @@ export default function RoomPage() {
     const lastFollowerUpdateRef = useRef<number>(0);
 
     const [fullscreen, setFullscreen] = useState(false);
+    
+    const [isAutoScrolling, setIsAutoScrolling] = useState(false);
+    const [autoScrollSpeed, setAutoScrollSpeed] = useState(0.10);
+
+    const autoScrollSpeedRef = useRef(autoScrollSpeed);
+    useEffect(() => { autoScrollSpeedRef.current = autoScrollSpeed; }, [autoScrollSpeed]);
 
     useEffect(() => {
         const handleFullscreenChange = () => {
@@ -272,6 +280,25 @@ export default function RoomPage() {
     const [showQr, setShowQr] = useState(false);
 
     const [isDetached, setIsDetached] = useState(false);
+    const isDetachedRef = useRef(isDetached);
+    isDetachedRef.current = isDetached;
+
+    // Resync leader autoscroll state when un-detaching
+    useEffect(() => {
+        if (!isDetached && !isLeader && roomId) {
+            fetch(`/api/room/${roomId}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.room) {
+                        setIsAutoScrolling(data.room.isAutoScrolling || false);
+                        if (data.room.autoScrollSpeed !== undefined) {
+                            setAutoScrollSpeed(data.room.autoScrollSpeed);
+                        }
+                    }
+                })
+                .catch(() => {});
+        }
+    }, [isDetached, isLeader, roomId]);
     
     const [showLeaderSuccess, setShowLeaderSuccess] = useState(false);
     
@@ -452,6 +479,12 @@ export default function RoomPage() {
             setScrollTarget(payload.scrollPosition);
         });
 
+        s.on('autoscroll_change', (payload: { isAutoScrolling: boolean, autoScrollSpeed: number }) => {
+            if (isDetachedRef.current) return;
+            setIsAutoScrolling(payload.isAutoScrolling);
+            setAutoScrollSpeed(payload.autoScrollSpeed);
+        });
+
         s.on('song_proposed', (payload: {songId: number, songTitle: string, artist: string} | null) => {
             if (payload) {
                 setProposal({
@@ -477,6 +510,7 @@ export default function RoomPage() {
             s.removeAllListeners('scroll_update');
             s.removeAllListeners('song_proposed');
             s.removeAllListeners('room_deleted');
+            s.removeAllListeners('autoscroll_change');
             s.removeAllListeners('leader_request');
             s.removeAllListeners('leader_rejected');
         };
@@ -589,6 +623,11 @@ export default function RoomPage() {
             } else {
                 setFontScale(1.0);
             }
+            if (parsed.defaultAutoScrollSpeed !== undefined) {
+                setAutoScrollSpeed(parsed.defaultAutoScrollSpeed);
+            } else {
+                setAutoScrollSpeed(0.10);
+            }
         }
 
         loadSong();
@@ -620,6 +659,12 @@ export default function RoomPage() {
             const timeSinceLastUpdate = now - lastFollowerUpdateRef.current;
             lastFollowerUpdateRef.current = now;
 
+            // If we are currently autoscrolling locally and the difference is small, ignore the integer sync packet
+            // to preserve sub-pixel hardware acceleration smoothness! We will smoothly pull towards it in the autoscroll loop.
+            if (isAutoScrolling && Math.abs(delta) < 150) {
+                return;
+            }
+
             // If updates are arriving quickly (continuous native scroll from leader) 
             // OR if it's a small jump, snapping is much better than a long animation 
             // that gets perpetually interrupted and freezes the screen.
@@ -648,6 +693,77 @@ export default function RoomPage() {
             }
         }
     }, [scrollTarget, isLeader, speed]);
+
+    // Autoscroll Logic
+    useEffect(() => {
+        if (!isAutoScrolling) return;
+
+        let animationFrameId: number;
+        let accumulator = 0;
+        let lastTime: number | null = null;
+
+        const scrollStep = (time: number) => {
+            if (lastTime === null) {
+                lastTime = time;
+                animationFrameId = requestAnimationFrame(scrollStep);
+                return;
+            }
+            const dt = time - lastTime;
+            lastTime = time;
+
+            const el = scrollRef.current;
+            if (el) {
+                // Stop automatically if we reached the bottom
+                if (Math.ceil(el.scrollTop) + el.clientHeight >= el.scrollHeight - 1) {
+                    setIsAutoScrolling(false);
+                    if (contentRef.current) contentRef.current.style.transform = '';
+                    return;
+                }
+
+                // Normalize speed: 1.0 = ~1 pixel per frame at 60fps (16.66ms)
+                let speedPerMs = autoScrollSpeed / 16.666;
+
+                if (!isLeader && !isDetachedRef.current) {
+                    const targetTop = scrollTopFromPosition(el, scrollTargetRef.current);
+                    const currentTop = el.scrollTop;
+                    // targetTop is where we should be logically. 
+                    // currentTop is where we are physically (excluding sub-pixel accumulator).
+                    // We add the accumulator to currentTop to get our exact physical float position.
+                    const drift = targetTop - (currentTop + accumulator);
+                    
+                    if (Math.abs(drift) > 0.5) {
+                        // Additive P-controller: strongly but smoothly pulls follower to leader's logical position.
+                        // 0.003 means 100px drift -> +0.3 px/ms -> +18 px/sec catchup speed.
+                        // This effortlessly handles massive screen size/layout differences!
+                        speedPerMs += drift * 0.003;
+                    }
+                }
+
+                accumulator += dt * speedPerMs;
+
+                if (Math.abs(accumulator) >= 1) {
+                    const pixelsToScroll = Math.trunc(accumulator);
+                    el.scrollTop += pixelsToScroll;
+                    accumulator -= pixelsToScroll;
+                }
+
+                // Sub-pixel smooth scrolling to reduce strobe/jitter
+                if (contentRef.current) {
+                    contentRef.current.style.transform = `translateY(-${accumulator}px)`;
+                }
+            }
+            animationFrameId = requestAnimationFrame(scrollStep);
+        };
+
+        animationFrameId = requestAnimationFrame(scrollStep);
+
+        return () => {
+            cancelAnimationFrame(animationFrameId);
+            if (contentRef.current) {
+                contentRef.current.style.transform = '';
+            }
+        };
+    }, [isAutoScrolling, autoScrollSpeed]);
 
     // Utility: leader emit with throttle that guarantees last packet
     function emitScroll(pos: ScrollPosition, nextSpeed: number) {
@@ -868,11 +984,27 @@ export default function RoomPage() {
         }
     }
 
+    const decreaseSpeedProps = useHoldRepeat(() => {
+        const nextSpeed = Number(Math.max(0.01, autoScrollSpeedRef.current - 0.01).toFixed(2));
+        setAutoScrollSpeed(nextSpeed);
+        if (socket && roomId && isLeader) {
+            socket.emit('autoscroll_change', { roomId, isAutoScrolling, autoScrollSpeed: nextSpeed });
+        }
+    });
+
+    const increaseSpeedProps = useHoldRepeat(() => {
+        const nextSpeed = Number(Math.min(1.0, autoScrollSpeedRef.current + 0.01).toFixed(2));
+        setAutoScrollSpeed(nextSpeed);
+        if (socket && roomId && isLeader) {
+            socket.emit('autoscroll_change', { roomId, isAutoScrolling, autoScrollSpeed: nextSpeed });
+        }
+    });
+
     return (
         <main className="flex h-[100dvh] flex-col overflow-hidden bg-white text-black dark:bg-black dark:text-white">
             <div className="mx-auto flex h-full w-full max-w-md md:max-w-3xl flex-col px-4 pt-3 pb-0 border-x-2 border-black/5 dark:border-white/5">
                 <header className="mb-2 flex items-center justify-between gap-2 overflow-hidden">
-                    <div className="flex flex-nowrap overflow-x-auto no-scrollbar items-center gap-2 pb-1 shrink pr-2">
+                    <div className="flex flex-nowrap overflow-x-auto scrollbar-hide items-center gap-2 pb-1 shrink pr-2">
                         <Link
                             href="/"
                             className="relative h-10 w-10 shrink-0 transition active:translate-x-[1px] active:translate-y-[1px]"
@@ -990,7 +1122,7 @@ export default function RoomPage() {
                                     }
                                 }
                             }}
-                            className="flex h-10 shrink-0 items-center justify-center text-lg font-black text-blue-700 bg-blue-100 px-3 rounded-lg border-2 border-blue-200 transition active:translate-x-[1px] active:translate-y-[1px] dark:bg-blue-900/50 dark:text-blue-300 dark:border-blue-700/50 tracking-widest"
+                            className="flex h-10 shrink-0 items-center justify-center text-lg font-black text-blue-700 bg-blue-100 px-1.5 rounded-lg border-2 border-blue-200 transition active:translate-x-[1px] active:translate-y-[1px] dark:bg-blue-900/50 dark:text-blue-300 dark:border-blue-700/50"
                             title="Поділитися"
                         >
                             {roomId}
@@ -1019,6 +1151,27 @@ export default function RoomPage() {
                                 <path d="M12 21v-1"></path>
                             </svg>
                         </button>
+                        {(isLeader || isDetached) && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const nextState = !isAutoScrolling;
+                                    setIsAutoScrolling(nextState);
+                                    if (socket && roomId && isLeader) {
+                                        socket.emit('autoscroll_change', { roomId, isAutoScrolling: nextState, autoScrollSpeed });
+                                    }
+                                }}
+                                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border-2 transition active:translate-x-[1px] active:translate-y-[1px] ${
+                                    isAutoScrolling ? 'border-green-500 bg-green-200 text-green-900 dark:bg-green-800 dark:text-green-100 dark:border-green-400' : 'border-gray-300 bg-gray-100 text-gray-700 dark:border-gray-700 dark:bg-gray-900/50 dark:text-gray-300'
+                                }`}
+                                title="Автоскрол"
+                            >
+                                <div className="flex flex-col items-center justify-center leading-none">
+                                    <span className="font-black text-xs leading-none">A</span>
+                                    <span className="font-black text-[12px] leading-none tracking-tighter">↓↓</span>
+                                </div>
+                            </button>
+                        )}
                     </div>
 
                     {fullscreenSupported && (
@@ -1155,6 +1308,7 @@ export default function RoomPage() {
 
 
                         <div 
+                            ref={contentRef}
                             className={`flex flex-col w-full font-sans pb-[50vh] border-2 border-transparent ${isDetached ? 'opacity-80' : ''}`} 
                             style={{ 
                                 fontSize: `${28 * fontScale}px`,
@@ -1263,6 +1417,36 @@ export default function RoomPage() {
                             className="w-full rounded-xl border-4 border-orange-500 bg-orange-100 p-4 text-xl font-black text-orange-900 transition active:translate-x-[2px] active:translate-y-[2px] dark:border-orange-500 dark:bg-orange-900 dark:text-orange-100"
                         >
                             🛡️ Втримати корону
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {(isAutoScrolling && (isLeader || isDetached)) && (
+                <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/90 dark:bg-black/90 border-t-2 border-black/10 dark:border-white/10 backdrop-blur pb-2">
+                    <div className="mx-auto max-w-md md:max-w-3xl flex items-center gap-4 px-4 py-3">
+                        <button
+                            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border-2 border-black/20 bg-black/5 text-2xl font-black transition active:bg-black/20 dark:border-white/20 dark:bg-white/10 dark:active:bg-white/20 touch-manipulation select-none"
+                            {...decreaseSpeedProps}
+                        >
+                            -
+                        </button>
+                        <div className="flex-1 flex flex-col gap-1">
+                            <div className="text-center text-xs font-black opacity-50 uppercase tracking-wider">
+                                Швидкість: {autoScrollSpeed.toFixed(2)}
+                            </div>
+                            <div className="h-4 w-full rounded-full bg-black/10 dark:bg-white/10 overflow-hidden relative">
+                                <div 
+                                    className="absolute top-0 left-0 h-full bg-green-500 dark:bg-green-400 transition-all duration-200"
+                                    style={{ width: `${Math.min(100, (autoScrollSpeed / 1.0) * 100)}%` }}
+                                />
+                            </div>
+                        </div>
+                        <button
+                            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border-2 border-black/20 bg-black/5 text-2xl font-black transition active:bg-black/20 dark:border-white/20 dark:bg-white/10 dark:active:bg-white/20 touch-manipulation select-none"
+                            {...increaseSpeedProps}
+                        >
+                            +
                         </button>
                     </div>
                 </div>

@@ -5,6 +5,7 @@ const {
     setTransposeDelta,
     updateScroll,
     setProposal,
+    updateAutoScroll,
 } = require("./roomState");
 
 const pendingLeaderRequests = new Map(); // roomId -> { timerId, requesterId }
@@ -362,6 +363,33 @@ function registerSocketHandlers(io, { getRoomStateSnapshot: getSnapshotFromDeps 
             emitToRoom(roomId, "speed_change", {
                 roomId,
                 speed: updated.speed,
+                timestamp: payload?.timestamp ?? Date.now(),
+            });
+
+            if (typeof ack === "function") ack({ ok: true });
+        });
+
+        socket.on("autoscroll_change", (payload, ack) => {
+            const roomId = safeString(payload?.roomId);
+            if (!roomId) return;
+
+            const userId = safeString(payload?.userId) || socket.data.userId;
+            const snapshot = getSnapshot(roomId);
+
+            if (!snapshot.leaderId || snapshot.leaderId !== userId) {
+                if (typeof ack === "function") ack({ ok: false, error: "Only leader can change autoscroll" });
+                return;
+            }
+
+            const { isAutoScrolling, autoScrollSpeed } = payload;
+            
+            updateAutoScroll(roomId, isAutoScrolling, autoScrollSpeed);
+            const updated = getSnapshot(roomId);
+
+            emitToRoom(roomId, "autoscroll_change", {
+                roomId,
+                isAutoScrolling: updated.isAutoScrolling,
+                autoScrollSpeed: updated.autoScrollSpeed,
                 timestamp: payload?.timestamp ?? Date.now(),
             });
 

@@ -956,14 +956,14 @@ export default function RoomPage() {
                 if (docEl.requestFullscreen) {
                     await docEl.requestFullscreen();
                     setFullscreen(true);
-                    if (screen.orientation && screen.orientation.lock) {
-                        screen.orientation.lock('portrait').catch(() => {});
+                    if (screen.orientation && (screen.orientation as any).lock) {
+                        (screen.orientation as any).lock('portrait').catch(() => {});
                     }
                 } else if (docEl.webkitRequestFullscreen) {
                     await docEl.webkitRequestFullscreen();
                     setFullscreen(true);
-                    if (screen.orientation && screen.orientation.lock) {
-                        screen.orientation.lock('portrait').catch(() => {});
+                    if (screen.orientation && (screen.orientation as any).lock) {
+                        (screen.orientation as any).lock('portrait').catch(() => {});
                     }
                 } else {
                     showToast('Повноекранний режим не підтримується на цьому пристрої (iOS)');

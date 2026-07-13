@@ -73,7 +73,7 @@ export default function GlobalWakeLock() {
                                 if (document.visibilityState === 'visible') setNeedsActivation(true);
                             });
                         } catch (e) {
-                            showToast('Не вдалося заблокувати екран', 'error');
+                            showToast('Не вдалося заблокувати екран');
                             setNeedsActivation(false); // Ховаємо навіть при помилці, щоб не блокувати сайт назавжди
                         }
                     };

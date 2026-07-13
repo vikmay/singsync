@@ -67,7 +67,7 @@ export default function GlobalWakeLock() {
                         try {
                             wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
                             setNeedsActivation(false);
-                            showToast('Екран більше не гаснутиме!', 'success');
+                            showToast('Екран більше не гаснутиме!');
                             wakeLockRef.current.addEventListener('release', () => {
                                 wakeLockRef.current = null;
                                 if (document.visibilityState === 'visible') setNeedsActivation(true);

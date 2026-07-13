@@ -1454,7 +1454,7 @@ export default function RoomPage() {
                     </div>
                 )}
                 {proposal && isLeader && (
-                    <div className="fixed top-0 left-0 right-0 z-[60] flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b-4 border-blue-500 bg-blue-100 px-3 py-2 shadow-lg dark:border-blue-400 dark:bg-blue-900">
+                    <div className="fixed bottom-0 left-0 right-0 z-[60] flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t-4 border-blue-500 bg-blue-100 px-3 py-2 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] dark:border-blue-400 dark:bg-blue-900 pb-[calc(env(safe-area-inset-bottom)+8px)]">
                         <div className="flex-1 min-w-0 flex items-center gap-2">
                             <div className="shrink-0 rounded bg-blue-500 px-2 py-1 text-[10px] sm:text-xs font-black uppercase tracking-wider text-white dark:bg-blue-300 dark:text-blue-900">
                                 Пропозиція

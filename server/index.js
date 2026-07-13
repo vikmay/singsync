@@ -48,7 +48,7 @@ async function main() {
     initDb(DB_PATH);
 
     const app = express();
-    app.use(express.json({ limit: "50mb" }));
+    app.use(express.json({ limit: "2gb" }));
 
     const server = http.createServer(app);
 

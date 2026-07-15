@@ -51,14 +51,24 @@ export default function VisualChordEditor({
 
     const moveChord = (lineIndex: number, placementIndex: number, delta: number) => {
         const newLines = [...lines];
-        const line = newLines[lineIndex];
+        const line = { ...newLines[lineIndex] };
         if (!line.placements) return;
 
-        const placements = [...line.placements];
-        const p = placements[placementIndex];
+        let placements = [...line.placements];
+        let p = placements[placementIndex];
         
-        const newI = Math.max(0, Math.min(line.text.length, p.i + delta));
-        placements[placementIndex] = { ...p, i: newI };
+        let newI = p.i + delta;
+        
+        if (newI < 0) {
+            const spacesToAdd = -newI;
+            line.text = ' '.repeat(spacesToAdd) + line.text;
+            placements = placements.map(pl => ({ ...pl, i: pl.i + spacesToAdd }));
+            newI = 0;
+        } else if (newI > line.text.length) {
+            line.text = line.text + ' '.repeat(newI - line.text.length);
+        }
+        
+        placements[placementIndex] = { ...placements[placementIndex], i: newI };
         
         newLines[lineIndex] = { ...line, placements };
         onChange(parsedLinesToText(newLines));

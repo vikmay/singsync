@@ -433,7 +433,7 @@ export default function Home() {
 
     return (
         <main className="min-h-screen bg-white text-black dark:bg-black dark:text-white">
-            <div className="mx-auto max-w-xl p-4 pb-12">
+            <div className="mx-auto w-full max-w-3xl p-4 pb-12">
                 <header className="mb-5 flex flex-col gap-4">
                     <div className="flex items-center justify-between gap-3">
                         <h1 className="text-3xl font-black tracking-tight shrink-0">

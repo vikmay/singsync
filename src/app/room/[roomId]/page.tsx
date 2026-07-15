@@ -1063,7 +1063,7 @@ export default function RoomPage() {
             onClick={interact}
             onTouchStart={interact}
         >
-            <div className="mx-auto flex h-full w-full max-w-md md:max-w-3xl flex-col px-4 pt-3 pb-0 border-x-2 border-black/5 dark:border-white/5">
+            <div className="mx-auto flex h-full w-full max-w-3xl flex-col px-4 pt-3 pb-0 border-x-2 border-black/5 dark:border-white/5">
                 <div 
                     className={`shrink-0 overflow-hidden transition-all ease-in-out ${isHeaderHidden ? 'duration-[2000ms] opacity-0 -mb-2' : 'duration-300 opacity-100 mb-0'}`}
                     style={{ 
@@ -1513,7 +1513,7 @@ export default function RoomPage() {
 
             {(isAutoScrolling && (isLeader || isDetached)) && (
                 <div className={`fixed bottom-0 left-0 right-0 z-40 bg-white/90 dark:bg-black/90 border-t-2 border-black/10 dark:border-white/10 backdrop-blur pb-2 transition-opacity ${isControlsFaded ? 'duration-[2000ms] opacity-0 pointer-events-none' : 'duration-300 opacity-100'}`}>
-                    <div className="mx-auto max-w-md md:max-w-3xl flex items-center gap-4 px-4 py-3">
+                    <div className="mx-auto w-full max-w-3xl flex items-center gap-4 px-4 py-3">
                         <button
                             className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border-2 border-black/20 bg-black/5 text-2xl font-black transition active:bg-black/20 dark:border-white/20 dark:bg-white/10 dark:active:bg-white/20 touch-manipulation select-none"
                             {...decreaseSpeedProps}

@@ -187,7 +187,7 @@ export default function AddSongPage() {
 
     return (
         <main className="flex h-[100dvh] flex-col overflow-hidden bg-white text-black dark:bg-black dark:text-white">
-            <div className="mx-auto flex h-full w-full max-w-md md:max-w-3xl flex-col border-x-2 border-black/5 dark:border-white/5 relative">
+            <div className="mx-auto flex h-full w-full max-w-3xl flex-col border-x-2 border-black/5 dark:border-white/5 relative">
                 
                 <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide flex flex-col">
                     <div className="px-4 flex flex-col gap-2 shrink-0 mb-4 pt-4">

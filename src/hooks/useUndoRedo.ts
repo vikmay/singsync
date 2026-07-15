@@ -6,26 +6,25 @@ export function useUndoRedo<T>(initialState: T) {
     const indexRef = useRef<number>(0);
     
     const setWithHistory = useCallback((newState: T | ((prev: T) => T)) => {
-        setState((prev) => {
-            const resolved = typeof newState === 'function' ? (newState as Function)(prev) : newState;
-            
-            // If the state didn't actually change, do nothing
-            if (resolved === prev) return prev;
-            
-            // Slice off any future history if we were in the middle of an undo
-            const history = historyRef.current.slice(0, indexRef.current + 1);
-            history.push(resolved);
-            
-            // Limit history size to prevent memory leaks (e.g., 50 states)
-            if (history.length > 50) {
-                history.shift();
-            }
-            
-            historyRef.current = history;
-            indexRef.current = history.length - 1;
-            
-            return resolved;
-        });
+        const prev = historyRef.current[indexRef.current];
+        const resolved = typeof newState === 'function' ? (newState as Function)(prev) : newState;
+        
+        // If the state didn't actually change, do nothing
+        if (resolved === prev) return;
+        
+        // Slice off any future history if we were in the middle of an undo
+        const history = historyRef.current.slice(0, indexRef.current + 1);
+        history.push(resolved);
+        
+        // Limit history size to prevent memory leaks (e.g., 50 states)
+        if (history.length > 50) {
+            history.shift();
+        }
+        
+        historyRef.current = history;
+        indexRef.current = history.length - 1;
+        
+        setState(resolved);
     }, []);
 
     const undo = useCallback(() => {
@@ -79,6 +78,8 @@ export function useUndoRedo<T>(initialState: T) {
         redo, 
         canUndo: indexRef.current > 0, 
         canRedo: indexRef.current < historyRef.current.length - 1, 
-        resetHistory 
+        resetHistory,
+        debugIndex: indexRef.current,
+        debugLength: historyRef.current.length
     };
 }

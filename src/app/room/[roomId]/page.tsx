@@ -235,6 +235,15 @@ export default function RoomPage() {
     const [songArtist, setSongArtist] = useState<string>('');
     const [lines, setLines] = useState<Line[]>([]);
 
+    const [queue, setQueue] = useState<any[]>([]);
+    const [currentQueueIndex, setCurrentQueueIndex] = useState(-1);
+    const [requests, setRequests] = useState<any[]>([]);
+    const [showQueueDrawer, setShowQueueDrawer] = useState(false);
+    const [swipedQueueItemIndex, setSwipedQueueItemIndex] = useState<number | null>(null);
+    const touchStartXRef = useRef<number>(0);
+    const touchStartYRef = useRef<number>(0);
+    const isPointerDownRef = useRef<boolean>(false);
+
     const [speed, setSpeed] = useState(1);
     const [transposeDelta, setTransposeDelta] = useState(0);
     const [scrollTarget, setScrollTarget] = useState<ScrollPosition>({
@@ -313,7 +322,7 @@ export default function RoomPage() {
         }
     }, [leaderRequestCountdown]);
 
-    const [proposal, setProposal] = useState<{songId: number, songTitle: string, artist: string} | null>(null);
+    const [activeToastRequest, setActiveToastRequest] = useState<{songId: number, songTitle: string, artist: string, timestamp: number} | null>(null);
     const isLeaderRef = useRef(isLeader);
     isLeaderRef.current = isLeader;
 
@@ -485,15 +494,18 @@ export default function RoomPage() {
             setAutoScrollSpeed(payload.autoScrollSpeed);
         });
 
-        s.on('song_proposed', (payload: {songId: number, songTitle: string, artist: string} | null) => {
+        s.on('queue_update', (payload: { queue: any[], currentQueueIndex: number }) => {
+            setQueue(payload.queue);
+            setCurrentQueueIndex(payload.currentQueueIndex);
+        });
+
+        s.on('requests_update', (payload: any[]) => {
+            setRequests(payload);
+        });
+
+        s.on('song_proposed', (payload: {songId: number, songTitle: string, artist: string, timestamp: number} | null) => {
             if (payload) {
-                setProposal({
-                    songId: payload.songId,
-                    songTitle: payload.songTitle,
-                    artist: payload.artist,
-                });
-            } else {
-                setProposal(null);
+                setActiveToastRequest(payload);
             }
         });
         s.on('room_deleted', () => {
@@ -509,6 +521,8 @@ export default function RoomPage() {
             s.removeAllListeners('transpose_change');
             s.removeAllListeners('scroll_update');
             s.removeAllListeners('song_proposed');
+            s.removeAllListeners('queue_update');
+            s.removeAllListeners('requests_update');
             s.removeAllListeners('room_deleted');
             s.removeAllListeners('autoscroll_change');
             s.removeAllListeners('leader_request');
@@ -541,6 +555,15 @@ export default function RoomPage() {
                 }
                 if (data.room?.leaderId) {
                     setLeaderId(prev => prev || data.room.leaderId);
+                }
+                if (data.room?.queue) {
+                    setQueue(data.room.queue);
+                }
+                if (data.room?.currentQueueIndex !== undefined) {
+                    setCurrentQueueIndex(data.room.currentQueueIndex);
+                }
+                if (data.room?.requests) {
+                    setRequests(data.room.requests);
                 }
             } catch (e) {
                 // ignore
@@ -883,15 +906,16 @@ export default function RoomPage() {
         }
     }
 
-    function clearProposal() {
-        setProposal(null);
+    function addRequestToQueue(request: any, index: number) {
         if (socket && roomId) {
-            socket.emit('clear_proposal', {
-                roomId,
-                userId,
-                timestamp: Date.now(),
-            });
+            socket.emit('queue_add', { roomId, userId, item: { song_id: request.songId, title: request.songTitle, artist: request.artist } });
+            socket.emit('request_remove', { roomId, userId, index });
+            showToast('Додано в чергу!');
         }
+    }
+
+    function clearProposal() {
+        setActiveToastRequest(null);
     }
 
     function onNativeScroll() {
@@ -1083,7 +1107,6 @@ export default function RoomPage() {
                                 <path strokeLinejoin="round" strokeLinecap="round" d="M12 3 L2 11.5 L5 11.5 L5 21 L19 21 L19 11.5 L22 11.5 Z" />
                             </svg>
                         </Link>
-                        
                         {socket?.connected && (
                             <button
                                 type="button"
@@ -1120,10 +1143,7 @@ export default function RoomPage() {
                             </button>
                         )}
 
-                        {isLeader && (
-                            <div className="relative shrink-0">
-                            </div>
-                        )}
+
 
 
 
@@ -1220,27 +1240,7 @@ export default function RoomPage() {
                                 <path d="M12 21v-1"></path>
                             </svg>
                         </button>
-                        {(isLeader || isDetached) && (
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    const nextState = !isAutoScrolling;
-                                    setIsAutoScrolling(nextState);
-                                    if (socket && roomId && isLeader) {
-                                        socket.emit('autoscroll_change', { roomId, isAutoScrolling: nextState, autoScrollSpeed });
-                                    }
-                                }}
-                                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border-2 transition active:translate-x-[1px] active:translate-y-[1px] ${
-                                    isAutoScrolling ? 'border-green-500 bg-green-200 text-green-900 dark:bg-green-800 dark:text-green-100 dark:border-green-400' : 'border-gray-300 bg-gray-100 text-gray-700 dark:border-gray-700 dark:bg-gray-900/50 dark:text-gray-300'
-                                }`}
-                                title="Автоскрол"
-                            >
-                                <div className="flex flex-col items-center justify-center leading-none">
-                                    <span className="font-black text-xs leading-none">A</span>
-                                    <span className="font-black text-[12px] leading-none tracking-tighter">↓↓</span>
-                                </div>
-                            </button>
-                        )}
+
                     </div>
 
                     {fullscreenSupported && (
@@ -1346,37 +1346,95 @@ export default function RoomPage() {
                                 </button>
                         </div>
                     </div>
+                    
+                    {!isLeader && queue && queue.length > 0 && currentQueueIndex >= 0 && currentQueueIndex < queue.length - 1 && (
+                        <div className="mt-2 flex items-center justify-center rounded-lg border-2 border-dashed border-black/30 p-2 text-sm font-bold opacity-70 dark:border-white/30">
+                            Наступна: {queue[currentQueueIndex + 1].title} - {queue[currentQueueIndex + 1].artist}
+                        </div>
+                    )}
                 </section>
                     </div>
                 </div>
 
                 <section className="flex flex-1 flex-col overflow-hidden rounded border-2 border-black bg-white dark:border-white dark:bg-black mb-2">
                     <div 
-                        className="flex items-center justify-between border-b-2 border-black/10 px-4 py-2 dark:border-white/10 shrink-0 select-none cursor-pointer"
+                        className="flex items-center justify-between border-b-2 border-black/10 px-4 py-2 dark:border-white/10 shrink-0 select-none"
                         onTouchStart={() => { interact(); }}
-                        onClick={() => {
-                            setIsHeaderHidden(!isHeaderHidden);
-                            interact();
-                        }}
                     >
                         <button 
-                            className="flex h-10 w-10 items-center justify-center rounded-lg border-2 border-black/20 bg-black/5 font-black transition active:bg-black/20 dark:border-white/20 dark:bg-white/10 dark:active:bg-white/20"
-                            onClick={(e) => { e.stopPropagation(); setFontScale(s => Math.max(0.5, s - 0.1)); interact(); }}
+                            className="flex h-10 w-10 items-center justify-center rounded-lg border-2 border-black/20 bg-black/5 font-black transition active:bg-black/20 dark:border-white/20 dark:bg-white/10 dark:active:bg-white/20 touch-manipulation shrink-0"
+                            onClick={(e) => { setFontScale(s => Math.max(0.5, s - 0.1)); interact(); }}
                             title="Зменшити шрифт"
                         >
-                            <span className="text-sm">A</span>
+                            <span className="text-sm">T-</span>
                         </button>
-                        <div className="flex flex-1 items-center justify-center opacity-50 hover:opacity-100 transition-opacity">
-                            <svg viewBox="0 0 24 24" className="w-8 h-8 stroke-current fill-none stroke-2" style={{ strokeLinecap: 'round', strokeLinejoin: 'round' }}>
-                                {isHeaderHidden ? <path d="M6 9l6 6 6-6" /> : <path d="M18 15l-6-6-6 6" />}
-                            </svg>
+                        <div className="flex flex-1 items-center justify-between h-10 px-2 relative">
+                            <div className="flex gap-2">
+                                <Link
+                                    href="/?search=1"
+                                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border-2 border-black/20 bg-black/5 transition active:bg-black/20 dark:border-white/20 dark:bg-white/10 dark:active:bg-white/20"
+                                    title="Пошук пісень"
+                                >
+                                    <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current">
+                                        <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+                                    </svg>
+                                </Link>
+
+                                {isLeader && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowQueueDrawer(true)}
+                                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border-2 border-black/20 bg-black/5 transition active:bg-black/20 dark:border-white/20 dark:bg-white/10 dark:active:bg-white/20 font-black"
+                                        title="Черга"
+                                    >
+                                        ☰
+                                    </button>
+                                )}
+                            </div>
+
+                            <button 
+                                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex h-10 w-16 items-center justify-center opacity-50 hover:opacity-100 transition-opacity cursor-pointer touch-manipulation rounded-lg active:bg-black/5 dark:active:bg-white/5"
+                                onClick={() => {
+                                    setIsHeaderHidden(!isHeaderHidden);
+                                    interact();
+                                }}
+                                title="Сховати/Показати заголовок"
+                            >
+                                <svg viewBox="0 0 24 24" className="w-8 h-8 stroke-current fill-none stroke-2" style={{ strokeLinecap: 'round', strokeLinejoin: 'round' }}>
+                                    {isHeaderHidden ? <path d="M6 9l6 6 6-6" /> : <path d="M18 15l-6-6-6 6" />}
+                                </svg>
+                            </button>
+
+                            <div className="flex gap-2">
+                                {(isLeader || isDetached) && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const nextState = !isAutoScrolling;
+                                            setIsAutoScrolling(nextState);
+                                            if (socket && roomId && isLeader) {
+                                                socket.emit('autoscroll_change', { roomId, isAutoScrolling: nextState, autoScrollSpeed });
+                                            }
+                                        }}
+                                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border-2 transition active:translate-x-[1px] active:translate-y-[1px] ${
+                                            isAutoScrolling ? 'border-green-500 bg-green-200 text-green-900 dark:bg-green-800 dark:text-green-100 dark:border-green-400' : 'border-gray-300 bg-gray-100 text-gray-700 dark:border-gray-700 dark:bg-gray-900/50 dark:text-gray-300'
+                                        }`}
+                                        title="Автоскрол"
+                                    >
+                                        <div className="flex flex-col items-center justify-center leading-none">
+                                            <span className="font-black text-xs leading-none">A</span>
+                                            <span className="font-black text-[12px] leading-none tracking-tighter">↓↓</span>
+                                        </div>
+                                    </button>
+                                )}
+                            </div>
                         </div>
                         <button 
-                            className="flex h-10 w-10 items-center justify-center rounded-lg border-2 border-black/20 bg-black/5 font-black transition active:bg-black/20 dark:border-white/20 dark:bg-white/10 dark:active:bg-white/20"
-                            onClick={(e) => { e.stopPropagation(); setFontScale(s => Math.min(2, s + 0.1)); interact(); }}
+                            className="flex h-10 w-10 items-center justify-center rounded-lg border-2 border-black/20 bg-black/5 font-black transition active:bg-black/20 dark:border-white/20 dark:bg-white/10 dark:active:bg-white/20 touch-manipulation shrink-0"
+                            onClick={(e) => { setFontScale(s => Math.min(2, s + 0.1)); interact(); }}
                             title="Збільшити шрифт"
                         >
-                            <span className="text-xl">A</span>
+                            <span className="text-sm">T+</span>
                         </button>
                     </div>
             {showLeaderSuccess && (
@@ -1453,34 +1511,263 @@ export default function RoomPage() {
                         </div>
                     </div>
                 )}
-                {proposal && isLeader && (
+
+                {activeToastRequest && isLeader && (
                     <div className="fixed bottom-0 left-0 right-0 z-[60] flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t-4 border-blue-500 bg-blue-100 px-3 py-2 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] dark:border-blue-400 dark:bg-blue-900 pb-[calc(env(safe-area-inset-bottom)+8px)]">
                         <div className="flex-1 min-w-0 flex items-center gap-2">
                             <div className="shrink-0 rounded bg-blue-500 px-2 py-1 text-[10px] sm:text-xs font-black uppercase tracking-wider text-white dark:bg-blue-300 dark:text-blue-900">
-                                Пропозиція
+                                Нове замовлення
                             </div>
                             <div className="min-w-0 flex flex-col sm:flex-row sm:items-baseline sm:gap-2">
                                 <span className="truncate text-base sm:text-xl font-black leading-tight text-black dark:text-white">
-                                    {proposal.songTitle}
+                                    {activeToastRequest.songTitle}
                                 </span>
                                 <span className="truncate text-[10px] sm:text-sm font-bold text-black/70 dark:text-white/70">
-                                    {proposal.artist}
+                                    {activeToastRequest.artist}
                                 </span>
                             </div>
                         </div>
                         <div className="flex shrink-0 gap-2 w-full sm:w-auto">
                             <button
-                                onClick={() => { selectSong(proposal.songId); clearProposal(); }}
+                                onClick={() => { selectSong(activeToastRequest.songId); clearProposal(); }}
                                 className="flex-1 sm:flex-none rounded-lg border-2 border-blue-700 bg-blue-600 px-4 py-2 text-sm font-black text-white transition active:translate-x-[1px] active:translate-y-[1px] hover:bg-blue-700 dark:border-blue-300 dark:bg-blue-500 dark:hover:bg-blue-600"
                             >
-                                Увімкнути
+                                Грати зараз
+                            </button>
+                            <button
+                                onClick={() => {
+                                    if (socket && roomId) {
+                                        socket.emit('queue_add', { roomId, userId, item: { song_id: activeToastRequest.songId, title: activeToastRequest.songTitle, artist: activeToastRequest.artist } });
+                                        clearProposal();
+                                        showToast('Додано в чергу!');
+                                    }
+                                }}
+                                className="flex-1 sm:flex-none rounded-lg border-2 border-blue-700 bg-white px-4 py-2 text-sm font-black text-blue-800 transition active:translate-x-[1px] active:translate-y-[1px] hover:bg-gray-100 dark:bg-black dark:text-blue-300 dark:hover:bg-gray-900"
+                            >
+                                В чергу
                             </button>
                             <button
                                 onClick={() => clearProposal()}
-                                className="flex-1 sm:flex-none rounded-lg border-2 border-blue-700 bg-transparent px-4 py-2 text-sm font-black text-blue-800 transition active:translate-x-[1px] active:translate-y-[1px] hover:bg-blue-200 dark:border-blue-300 dark:text-blue-200 dark:hover:bg-blue-800/50"
+                                className="flex-1 sm:flex-none rounded-lg border-2 border-transparent bg-transparent px-2 py-2 text-sm font-black text-gray-500 hover:text-gray-800 transition dark:text-gray-400 dark:hover:text-gray-200"
+                                title="Закрити (Залишиться в меню)"
                             >
-                                Сховати
+                                ✖
                             </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Sidebar Drawer for Queue & Requests */}
+                {showQueueDrawer && isLeader && (
+                    <div className="fixed inset-0 z-[100] flex justify-end">
+                        <div className="absolute inset-0 bg-black/50" onClick={() => setShowQueueDrawer(false)}></div>
+                        <div className="relative w-full max-w-sm bg-white dark:bg-black h-full shadow-[-4px_0_15px_rgba(0,0,0,0.2)] flex flex-col transform transition-transform border-l-2 border-black dark:border-white">
+                            <div className="flex items-center justify-between p-4 border-b-2 border-black dark:border-white shrink-0">
+                                <h2 className="text-xl font-black">Меню Черги</h2>
+                                <button onClick={() => setShowQueueDrawer(false)} className="text-2xl font-black leading-none px-2 py-1 bg-black text-white dark:bg-white dark:text-black rounded">✕</button>
+                            </div>
+                            
+                            <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                                {/* Queue Section */}
+                                <section>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <h3 className="font-bold text-lg">Поточна Черга</h3>
+                                        <button 
+                                            onClick={() => {
+                                                if (socket && roomId) {
+                                                    socket.emit('queue_next', { roomId, userId });
+                                                }
+                                            }}
+                                            disabled={queue.length === 0 || currentQueueIndex >= queue.length - 1}
+                                            className="px-3 py-1 bg-green-500 text-white font-bold rounded text-sm disabled:opacity-30"
+                                        >
+                                            Далі ⏭️
+                                        </button>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {queue.length === 0 && <div className="text-sm opacity-50 italic">Черга порожня</div>}
+                                        {queue.map((item, index) => {
+                                            const isActive = index === currentQueueIndex;
+                                            const isPast = index < currentQueueIndex;
+                                            return (
+                                                <div 
+                                                    key={item.song_id + '-' + index} 
+                                                    className={`relative overflow-hidden border-2 rounded ${isActive ? 'border-green-500 bg-green-50 dark:bg-green-900/30' : isPast ? 'border-gray-300 opacity-50 dark:border-gray-700' : 'border-black dark:border-white'}`}
+                                                    onTouchStart={(e) => {
+                                                        touchStartXRef.current = e.touches[0].clientX;
+                                                        touchStartYRef.current = e.touches[0].clientY;
+                                                    }}
+                                                    onTouchMove={(e) => {
+                                                        const deltaX = e.touches[0].clientX - touchStartXRef.current;
+                                                        const deltaY = e.touches[0].clientY - touchStartYRef.current;
+                                                        if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 30) {
+                                                            if (deltaX < 0) {
+                                                                setSwipedQueueItemIndex(index);
+                                                            } else if (swipedQueueItemIndex === index) {
+                                                                setSwipedQueueItemIndex(null);
+                                                            }
+                                                        }
+                                                    }}
+                                                    onMouseDown={(e) => {
+                                                        isPointerDownRef.current = true;
+                                                        touchStartXRef.current = e.clientX;
+                                                        touchStartYRef.current = e.clientY;
+                                                    }}
+                                                    onMouseMove={(e) => {
+                                                        if (!isPointerDownRef.current) return;
+                                                        const deltaX = e.clientX - touchStartXRef.current;
+                                                        const deltaY = e.clientY - touchStartYRef.current;
+                                                        if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 30) {
+                                                            if (deltaX < 0) {
+                                                                setSwipedQueueItemIndex(index);
+                                                            } else if (swipedQueueItemIndex === index) {
+                                                                setSwipedQueueItemIndex(null);
+                                                            }
+                                                        }
+                                                    }}
+                                                    onMouseUp={() => isPointerDownRef.current = false}
+                                                    onMouseLeave={() => isPointerDownRef.current = false}
+                                                >
+                                                    <div className={`flex items-center justify-between p-2 transition-transform duration-200 ${swipedQueueItemIndex === index ? '-translate-x-10' : 'translate-x-0'}`}>
+                                                        <div className="min-w-0 flex-1">
+                                                            <div className="font-bold truncate text-sm">{item.title}</div>
+                                                            <div className="text-xs truncate">{item.artist}</div>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 shrink-0 ml-2">
+                                                            <div className="flex gap-1 mr-1">
+                                                                <button 
+                                                                    disabled={index <= currentQueueIndex + 1}
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        if (socket && roomId) {
+                                                                            socket.emit('queue_move', { roomId, userId, index, direction: -1 });
+                                                                        }
+                                                                    }}
+                                                                    onTouchStart={(e) => e.stopPropagation()}
+                                                                    onTouchMove={(e) => e.stopPropagation()}
+                                                                    onMouseDown={(e) => e.stopPropagation()}
+                                                                    className="w-8 h-8 flex items-center justify-center border-2 border-black dark:border-white bg-white text-black dark:bg-black dark:text-white rounded disabled:opacity-30 transition active:translate-x-[1px] active:translate-y-[1px]"
+                                                                    title="Вгору"
+                                                                >
+                                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                                                        <polyline points="18 15 12 9 6 15"></polyline>
+                                                                    </svg>
+                                                                </button>
+                                                                <button 
+                                                                    disabled={index <= currentQueueIndex || index === queue.length - 1}
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        if (socket && roomId) {
+                                                                            socket.emit('queue_move', { roomId, userId, index, direction: 1 });
+                                                                        }
+                                                                    }}
+                                                                    onTouchStart={(e) => e.stopPropagation()}
+                                                                    onTouchMove={(e) => e.stopPropagation()}
+                                                                    onMouseDown={(e) => e.stopPropagation()}
+                                                                    className="w-8 h-8 flex items-center justify-center border-2 border-black dark:border-white bg-white text-black dark:bg-black dark:text-white rounded disabled:opacity-30 transition active:translate-x-[1px] active:translate-y-[1px]"
+                                                                    title="Вниз"
+                                                                >
+                                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                                                        <polyline points="6 9 12 15 18 9"></polyline>
+                                                                    </svg>
+                                                                </button>
+                                                            </div>
+                                                            {!isActive && !isPast && (
+                                                                <button 
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        if (socket && roomId) {
+                                                                            socket.emit('queue_jump', { roomId, userId, index });
+                                                                            setShowQueueDrawer(false);
+                                                                        }
+                                                                    }} 
+                                                                    onTouchStart={(e) => e.stopPropagation()}
+                                                                    onTouchMove={(e) => e.stopPropagation()}
+                                                                    onMouseDown={(e) => e.stopPropagation()}
+                                                                    className="w-8 h-8 flex items-center justify-center border-2 border-black dark:border-white bg-white text-black dark:bg-black dark:text-white rounded transition active:translate-x-[1px] active:translate-y-[1px]"
+                                                                    title="Грати"
+                                                                >
+                                                                    <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current ml-0.5">
+                                                                        <path d="M8 5v14l11-7z"/>
+                                                                    </svg>
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    <div 
+                                                        className={`absolute right-0 top-0 bottom-0 flex items-center pr-2 transition-opacity duration-200 ${swipedQueueItemIndex === index ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                                                    >
+                                                        <button 
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (socket && roomId) {
+                                                                    socket.emit('queue_remove', { roomId, userId, index });
+                                                                    setSwipedQueueItemIndex(null);
+                                                                }
+                                                            }}
+                                                            className="w-8 h-8 flex items-center justify-center border-2 border-red-500 bg-red-500 text-white rounded font-bold transition active:translate-x-[1px] active:translate-y-[1px]"
+                                                            title="Видалити"
+                                                        >
+                                                            ✕
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </section>
+
+                                {/* Requests Section */}
+                                <section>
+                                    <h3 className="font-bold text-lg mb-2 flex items-center gap-2">
+                                        Замовлення 
+                                        {requests.length > 0 && <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">{requests.length}</span>}
+                                    </h3>
+                                    <div className="space-y-2">
+                                        {requests.length === 0 && <div className="text-sm opacity-50 italic">Немає замовлень</div>}
+                                        {requests.map((req, index) => (
+                                            <div key={req.timestamp + '-' + index} className="flex items-center justify-between p-2 border-2 border-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded">
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="font-bold truncate text-sm">{req.songTitle}</div>
+                                                    <div className="text-xs truncate">{req.artist}</div>
+                                                </div>
+                                                <div className="flex flex-col gap-1 shrink-0 ml-2">
+                                                    <button 
+                                                        onClick={() => addRequestToQueue(req, index)}
+                                                        className="px-2 py-1 bg-green-500 text-white text-xs font-bold rounded"
+                                                    >
+                                                        В чергу ⬇️
+                                                    </button>
+                                                    <div className="flex gap-1">
+                                                        <button 
+                                                            onClick={() => {
+                                                                selectSong(req.songId);
+                                                                if (socket && roomId) {
+                                                                    socket.emit('request_remove', { roomId, userId, index });
+                                                                }
+                                                            }}
+                                                            className="flex-1 px-2 py-1 bg-white text-black border-2 border-black dark:bg-black dark:text-white dark:border-white text-xs font-bold rounded transition active:translate-x-[1px] active:translate-y-[1px]"
+                                                        >
+                                                            Грати
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => {
+                                                                if (socket && roomId) {
+                                                                    socket.emit('request_remove', { roomId, userId, index });
+                                                                }
+                                                            }}
+                                                            className="px-2 py-1 bg-gray-500 text-white text-xs font-bold rounded"
+                                                        >
+                                                            ✕
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </section>
+                            </div>
                         </div>
                     </div>
                 )}

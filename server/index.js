@@ -21,6 +21,11 @@ const {
     deleteSong,
     deleteRoom,
     listRecentRooms,
+    listSetlists,
+    getSetlist,
+    createSetlist,
+    updateSetlist,
+    deleteSetlist,
 } = require("./sqlite");
 
 const cheerio = require("cheerio");
@@ -312,6 +317,66 @@ async function main() {
                 }
             });
 
+            // Setlists APIs
+            app.get("/api/setlists", (req, res) => {
+                try {
+                    const setlists = listSetlists();
+                    res.json({ setlists });
+                } catch (e) {
+                    res.status(500).json({ error: "Failed to fetch setlists" });
+                }
+            });
+
+            app.get("/api/setlist/:id", (req, res) => {
+                try {
+                    const setlist = getSetlist(req.params.id);
+                    if (!setlist) return res.status(404).json({ error: "Setlist not found" });
+                    res.json({ setlist });
+                } catch (e) {
+                    res.status(500).json({ error: "Failed to fetch setlist" });
+                }
+            });
+
+            app.post("/api/setlists", (req, res) => {
+                if (req.headers["x-admin-password"] !== ADMIN_PASSWORD) {
+                    return res.status(401).json({ error: "Unauthorized" });
+                }
+                try {
+                    const { title, items } = req.body;
+                    if (!title) return res.status(400).json({ error: "title is required" });
+                    const id = createSetlist(title, items || []);
+                    res.json({ ok: true, id });
+                } catch (e) {
+                    res.status(500).json({ error: "Failed to create setlist" });
+                }
+            });
+
+            app.put("/api/setlist/:id", (req, res) => {
+                if (req.headers["x-admin-password"] !== ADMIN_PASSWORD) {
+                    return res.status(401).json({ error: "Unauthorized" });
+                }
+                try {
+                    const { title, items } = req.body;
+                    if (!title) return res.status(400).json({ error: "title is required" });
+                    updateSetlist(req.params.id, title, items || []);
+                    res.json({ ok: true });
+                } catch (e) {
+                    res.status(500).json({ error: "Failed to update setlist" });
+                }
+            });
+
+            app.delete("/api/setlist/:id", (req, res) => {
+                if (req.headers["x-admin-password"] !== ADMIN_PASSWORD) {
+                    return res.status(401).json({ error: "Unauthorized" });
+                }
+                try {
+                    deleteSetlist(req.params.id);
+                    res.json({ ok: true });
+                } catch (e) {
+                    res.status(500).json({ error: "Failed to delete setlist" });
+                }
+            });
+
             // Rooms APIs
             app.get("/api/rooms/active", (req, res) => {
                 try {
@@ -323,7 +388,7 @@ async function main() {
                 }
             });
 
-            // POST /api/room  { roomId?: string, songId: number, leaderId: string }
+            // POST /api/room  { roomId?: string, songId?: number, setlistId?: number, leaderId: string }
             app.post("/api/room", (req, res) => {
                 try {
                     const body = req.body || {};
@@ -332,7 +397,6 @@ async function main() {
                             ? body.roomId.trim()
                             : null;
 
-                    const songId = body.songId;
                     const leaderId =
                         typeof body.leaderId === "string" && body.leaderId.trim()
                             ? body.leaderId.trim()
@@ -341,8 +405,25 @@ async function main() {
                     if (!leaderId) {
                         return res.status(400).json({ error: "leaderId is required" });
                     }
-                    if (!Number.isFinite(Number(songId))) {
-                        return res.status(400).json({ error: "songId is required" });
+
+                    let initialSongId = body.songId;
+                    let queueItems = [];
+
+                    if (body.setlistId) {
+                        const setlist = getSetlist(body.setlistId);
+                        if (setlist && setlist.items && setlist.items.length > 0) {
+                            initialSongId = setlist.items[0].song_id;
+                            queueItems = setlist.items.map(i => ({
+                                id: i.item_id,
+                                song_id: i.song_id,
+                                title: i.title,
+                                artist: i.artist
+                            }));
+                        }
+                    }
+
+                    if (!Number.isFinite(Number(initialSongId))) {
+                        return res.status(400).json({ error: "songId or valid setlistId is required" });
                     }
 
                     if (!roomId) {
@@ -350,11 +431,14 @@ async function main() {
                     }
 
                     // Persist room in DB
-                    createRoom({ roomId, songId: Number(songId), leaderId });
+                    createRoom({ roomId, songId: Number(initialSongId), leaderId });
 
                     // Seed in-memory state so first socket join has consistent data
                     const { clearedRoomIds } = setLeader(roomId, leaderId);
-                    setSong(roomId, Number(songId));
+                    setSong(roomId, Number(initialSongId));
+                    
+                    const { setQueue } = require("./roomState");
+                    setQueue(roomId, queueItems);
 
                     // Notify other rooms that they lost this leader
                     for (const clearedId of clearedRoomIds) {
@@ -365,7 +449,7 @@ async function main() {
                         });
                     }
 
-                    res.json({ ok: true, roomId, songId: Number(songId), leaderId });
+                    res.json({ ok: true, roomId, songId: Number(initialSongId), leaderId });
                 } catch (e) {
                     return res.status(500).json({ error: "Failed to create room" });
                 }
@@ -404,9 +488,11 @@ async function main() {
                         timestamp: Date.now(),
                     };
 
-                    setProposal(roomId, proposal);
+                    const { addRequest } = require("./roomState");
+                    addRequest(roomId, proposal);
 
                     io.to(roomId).emit("song_proposed", proposal);
+                    io.to(roomId).emit("requests_update", getRoomStateSnapshot(roomId).requests);
 
                     res.json({ ok: true, proposed: true });
                 } catch (e) {
@@ -440,6 +526,9 @@ async function main() {
                         songId: roomRow.song_id,
                         leaderId: roomRow.leader_id,
                         createdAt: roomRow.created_at,
+                        queue: snapshot2.queue || [],
+                        currentQueueIndex: snapshot2.currentQueueIndex ?? -1,
+                        requests: snapshot2.requests || [],
                     },
                     realtime: {
                         scrollPosition: snapshot2.scrollPosition,

@@ -6,6 +6,13 @@ const {
     updateScroll,
     setProposal,
     updateAutoScroll,
+    setQueue,
+    addQueueItem,
+    removeQueueItem,
+    nextQueueItem,
+    playQueueItemNow,
+    moveQueueItem,
+    removeRequest,
 } = require("./roomState");
 
 const pendingLeaderRequests = new Map(); // roomId -> { timerId, requesterId }
@@ -99,6 +106,14 @@ function registerSocketHandlers(io, { getRoomStateSnapshot: getSnapshotFromDeps 
                 if (updated.proposal) {
                     socket.emit("song_proposed", updated.proposal);
                 }
+
+                socket.emit("queue_update", {
+                    queue: updated.queue,
+                    currentQueueIndex: updated.currentQueueIndex,
+                    timestamp: Date.now(),
+                });
+
+                socket.emit("requests_update", updated.requests || []);
 
                 if (typeof ack === "function") ack({ ok: true });
             } catch (err) {
@@ -421,6 +436,161 @@ function registerSocketHandlers(io, { getRoomStateSnapshot: getSnapshotFromDeps 
                 timestamp: payload?.timestamp ?? Date.now(),
             });
 
+            if (typeof ack === "function") ack({ ok: true });
+        });
+
+        socket.on("queue_add", (payload, ack) => {
+            const roomId = safeString(payload?.roomId);
+            if (!roomId) return;
+            const userId = safeString(payload?.userId) || socket.data.userId;
+            const snapshot = getSnapshot(roomId);
+            if (!snapshot.leaderId || snapshot.leaderId !== userId) return;
+
+            addQueueItem(roomId, payload.item);
+            const updated = getSnapshot(roomId);
+            emitToRoom(roomId, "queue_update", {
+                queue: updated.queue,
+                currentQueueIndex: updated.currentQueueIndex,
+                timestamp: Date.now(),
+            });
+            if (typeof ack === "function") ack({ ok: true });
+        });
+
+        socket.on("queue_remove", (payload, ack) => {
+            const roomId = safeString(payload?.roomId);
+            if (!roomId) return;
+            const userId = safeString(payload?.userId) || socket.data.userId;
+            const snapshot = getSnapshot(roomId);
+            if (!snapshot.leaderId || snapshot.leaderId !== userId) return;
+
+            removeQueueItem(roomId, payload.index);
+            const updated = getSnapshot(roomId);
+            emitToRoom(roomId, "queue_update", {
+                queue: updated.queue,
+                currentQueueIndex: updated.currentQueueIndex,
+                timestamp: Date.now(),
+            });
+            if (typeof ack === "function") ack({ ok: true });
+        });
+
+        socket.on("queue_move", (payload, ack) => {
+            const roomId = safeString(payload?.roomId);
+            if (!roomId) return;
+            const userId = safeString(payload?.userId) || socket.data.userId;
+            const snapshot = getSnapshot(roomId);
+            if (!snapshot.leaderId || snapshot.leaderId !== userId) return;
+
+            moveQueueItem(roomId, parseInt(payload.index, 10), parseInt(payload.direction, 10));
+            const updated = getSnapshot(roomId);
+            emitToRoom(roomId, "queue_update", {
+                queue: updated.queue,
+                currentQueueIndex: updated.currentQueueIndex,
+                timestamp: Date.now(),
+            });
+            if (typeof ack === "function") ack({ ok: true });
+        });
+
+        socket.on("queue_jump", (payload, ack) => {
+            const roomId = safeString(payload?.roomId);
+            if (!roomId) return;
+            const userId = safeString(payload?.userId) || socket.data.userId;
+            const snapshot = getSnapshot(roomId);
+            if (!snapshot.leaderId || snapshot.leaderId !== userId) return;
+
+            playQueueItemNow(roomId, payload.index);
+            const updated = getSnapshot(roomId);
+            emitToRoom(roomId, "queue_update", {
+                queue: updated.queue,
+                currentQueueIndex: updated.currentQueueIndex,
+                timestamp: Date.now(),
+            });
+
+            if (updated.currentQueueIndex >= 0 && updated.currentQueueIndex < updated.queue.length) {
+                const nextSong = updated.queue[updated.currentQueueIndex];
+                setSong(roomId, Number(nextSong.song_id));
+                const updatedSong = getSnapshot(roomId);
+                
+                const { updateRoomSong, getRoom } = require("./sqlite");
+                const roomRow = getRoom(roomId);
+                if (roomRow) {
+                    updateRoomSong(roomId, nextSong.song_id);
+                }
+
+                emitToRoom(roomId, "song_change", {
+                    roomId,
+                    songId: updatedSong.songId,
+                    timestamp: Date.now(),
+                });
+
+                updateScroll(roomId, { lineIndex: 0, offsetPercent: 0 }, updatedSong.speed);
+                const updatedScroll = getSnapshot(roomId);
+                emitToRoom(roomId, "scroll_update", {
+                    roomId,
+                    scrollPosition: updatedScroll.scrollPosition,
+                    speed: updatedScroll.speed,
+                    timestamp: Date.now(),
+                });
+            }
+
+            if (typeof ack === "function") ack({ ok: true });
+        });
+
+        socket.on("queue_next", (payload, ack) => {
+            const roomId = safeString(payload?.roomId);
+            if (!roomId) return;
+            const userId = safeString(payload?.userId) || socket.data.userId;
+            const snapshot = getSnapshot(roomId);
+            if (!snapshot.leaderId || snapshot.leaderId !== userId) return;
+
+            nextQueueItem(roomId);
+            const updated = getSnapshot(roomId);
+            emitToRoom(roomId, "queue_update", {
+                queue: updated.queue,
+                currentQueueIndex: updated.currentQueueIndex,
+                timestamp: Date.now(),
+            });
+
+            // Also automatically change the song if possible
+            if (updated.currentQueueIndex >= 0 && updated.currentQueueIndex < updated.queue.length) {
+                const nextSong = updated.queue[updated.currentQueueIndex];
+                setSong(roomId, Number(nextSong.song_id));
+                const updatedSong = getSnapshot(roomId);
+                
+                const { updateRoomSong, getRoom } = require("./sqlite");
+                const roomRow = getRoom(roomId);
+                if (roomRow) {
+                    updateRoomSong(roomId, nextSong.song_id);
+                }
+
+                emitToRoom(roomId, "song_change", {
+                    roomId,
+                    songId: updatedSong.songId,
+                    timestamp: Date.now(),
+                });
+
+                updateScroll(roomId, { lineIndex: 0, offsetPercent: 0 }, updatedSong.speed);
+                const updatedScroll = getSnapshot(roomId);
+                emitToRoom(roomId, "scroll_update", {
+                    roomId,
+                    scrollPosition: updatedScroll.scrollPosition,
+                    speed: updatedScroll.speed,
+                    timestamp: Date.now(),
+                });
+            }
+
+            if (typeof ack === "function") ack({ ok: true });
+        });
+
+        socket.on("request_remove", (payload, ack) => {
+            const roomId = safeString(payload?.roomId);
+            if (!roomId) return;
+            const userId = safeString(payload?.userId) || socket.data.userId;
+            const snapshot = getSnapshot(roomId);
+            if (!snapshot.leaderId || snapshot.leaderId !== userId) return;
+
+            removeRequest(roomId, payload.index);
+            const updated = getSnapshot(roomId);
+            emitToRoom(roomId, "requests_update", updated.requests || []);
             if (typeof ack === "function") ack({ ok: true });
         });
 

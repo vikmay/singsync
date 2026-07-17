@@ -24,6 +24,9 @@ function getOrCreateRoom(roomId) {
         proposal: null,
         isAutoScrolling: false,
         autoScrollSpeed: 0.1,
+        queue: [], // array of song objects: { id, song_id, title, artist }
+        currentQueueIndex: -1,
+        requests: [], // array of proposal objects
         timestamp: Date.now(),
     };
     rooms.set(roomId, state);
@@ -99,6 +102,105 @@ function deleteRoomState(roomId) {
     rooms.delete(roomId);
 }
 
+function setQueue(roomId, queue) {
+    const room = getOrCreateRoom(roomId);
+    room.queue = Array.isArray(queue) ? queue : [];
+    room.currentQueueIndex = room.queue.length > 0 ? 0 : -1;
+    room.timestamp = Date.now();
+    return room;
+}
+
+function addQueueItem(roomId, item) {
+    const room = getOrCreateRoom(roomId);
+    room.queue.push(item);
+    if (room.currentQueueIndex === -1) {
+        room.currentQueueIndex = 0;
+    }
+    room.timestamp = Date.now();
+    return room;
+}
+
+function removeQueueItem(roomId, index) {
+    const room = getOrCreateRoom(roomId);
+    if (index >= 0 && index < room.queue.length) {
+        room.queue.splice(index, 1);
+        if (room.currentQueueIndex >= room.queue.length) {
+            room.currentQueueIndex = room.queue.length - 1;
+        } else if (index < room.currentQueueIndex) {
+            room.currentQueueIndex--;
+        }
+    }
+    room.timestamp = Date.now();
+    return room;
+}
+
+function nextQueueItem(roomId) {
+    const room = getOrCreateRoom(roomId);
+    if (room.currentQueueIndex >= 0 && room.currentQueueIndex < room.queue.length - 1) {
+        room.currentQueueIndex++;
+    }
+    room.timestamp = Date.now();
+    return room;
+}
+
+function playQueueItemNow(roomId, index) {
+    const room = getOrCreateRoom(roomId);
+    if (index >= 0 && index < room.queue.length) {
+        if (index !== room.currentQueueIndex) {
+            const [item] = room.queue.splice(index, 1);
+            let targetIndex = room.currentQueueIndex;
+            if (targetIndex < 0) targetIndex = -1;
+            
+            if (index < targetIndex) {
+                targetIndex--;
+            }
+            
+            room.queue.splice(targetIndex + 1, 0, item);
+            room.currentQueueIndex = targetIndex + 1;
+        }
+    }
+    room.timestamp = Date.now();
+    return room;
+}
+
+function moveQueueItem(roomId, index, direction) {
+    const room = getOrCreateRoom(roomId);
+    if (index >= 0 && index < room.queue.length) {
+        const newIndex = index + direction;
+        if (newIndex >= 0 && newIndex < room.queue.length) {
+            // Swap items
+            const temp = room.queue[index];
+            room.queue[index] = room.queue[newIndex];
+            room.queue[newIndex] = temp;
+            
+            // Adjust currentQueueIndex if needed
+            if (room.currentQueueIndex === index) {
+                room.currentQueueIndex = newIndex;
+            } else if (room.currentQueueIndex === newIndex) {
+                room.currentQueueIndex = index;
+            }
+        }
+    }
+    room.timestamp = Date.now();
+    return room;
+}
+
+function addRequest(roomId, request) {
+    const room = getOrCreateRoom(roomId);
+    room.requests.push(request);
+    room.timestamp = Date.now();
+    return room;
+}
+
+function removeRequest(roomId, index) {
+    const room = getOrCreateRoom(roomId);
+    if (index >= 0 && index < room.requests.length) {
+        room.requests.splice(index, 1);
+    }
+    room.timestamp = Date.now();
+    return room;
+}
+
 function cleanupOldMemoryRooms() {
     const now = Date.now();
     const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
@@ -121,6 +223,14 @@ module.exports = {
     setProposal,
     updateAutoScroll,
     deleteRoomState,
+    setQueue,
+    addQueueItem,
+    removeQueueItem,
+    nextQueueItem,
+    playQueueItemNow,
+    moveQueueItem,
+    addRequest,
+    removeRequest,
     // exported for debugging/testing
     _rooms: rooms,
 };

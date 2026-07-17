@@ -38,6 +38,21 @@ function ensureMigrations(dbPath) {
       nickname TEXT NOT NULL,
       joined_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS setlists (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS setlist_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      setlist_id INTEGER NOT NULL,
+      song_id INTEGER NOT NULL,
+      order_index INTEGER NOT NULL,
+      FOREIGN KEY (setlist_id) REFERENCES setlists(id) ON DELETE CASCADE,
+      FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE
+    );
   `);
 
     // Seed if songs table is empty
@@ -218,12 +233,26 @@ function updateRoomLeader(roomId, leaderId) {
         `).run({ leader_id: lId });
     }
 
-    // Встановлюємо нового лідера в потрібну кімнату
-    db.prepare(`
-        UPDATE rooms 
-        SET leader_id = @leader_id 
-        WHERE id = @id
-    `).run({ id, leader_id: lId });
+    // Встановлюємо нового лідера
+        try {
+            db.prepare(`
+            UPDATE rooms 
+            SET leader_id = @leaderId 
+            WHERE id = @id
+        `).run({ id, leaderId: lId });
+        } catch (e) {
+            console.error("updateRoomLeader error", e);
+        }
+}
+
+function updateRoomSong(roomId, songId) {
+    const id = safeText(roomId);
+    if (!id) return;
+    try {
+        db.prepare("UPDATE rooms SET song_id = @songId WHERE id = @id").run({ songId: Number(songId), id });
+    } catch (e) {
+        console.error("updateRoomSong error", e);
+    }
 }
 
 function getRoom(roomId) {
@@ -313,6 +342,75 @@ function deleteSong(id) {
     db.prepare("DELETE FROM songs WHERE id = @id").run({ id: sId });
 }
 
+// Setlists CRUD
+function listSetlists() {
+    return db
+        .prepare("SELECT id, title, created_at FROM setlists ORDER BY created_at DESC")
+        .all();
+}
+
+function getSetlist(id) {
+    const sId = Number(id);
+    const setlist = db.prepare("SELECT id, title, created_at FROM setlists WHERE id = @id").get({ id: sId });
+    if (!setlist) return null;
+
+    const items = db.prepare(`
+        SELECT si.id as item_id, si.song_id, si.order_index, s.title, s.artist 
+        FROM setlist_items si
+        JOIN songs s ON si.song_id = s.id
+        WHERE si.setlist_id = @id
+        ORDER BY si.order_index ASC
+    `).all({ id: sId });
+
+    return { ...setlist, items };
+}
+
+function createSetlist(title, items = []) {
+    const t = safeText(title);
+    if (!t) throw new Error("title is required");
+
+    const info = db.prepare("INSERT INTO setlists (title) VALUES (@title)").run({ title: t });
+    const setlistId = info.lastInsertRowid;
+
+    if (items.length > 0) {
+        const insertItem = db.prepare("INSERT INTO setlist_items (setlist_id, song_id, order_index) VALUES (@setlist_id, @song_id, @order_index)");
+        const tx = db.transaction((items) => {
+            for (let i = 0; i < items.length; i++) {
+                insertItem.run({ setlist_id: setlistId, song_id: Number(items[i]), order_index: i });
+            }
+        });
+        tx(items);
+    }
+    return setlistId;
+}
+
+function updateSetlist(id, title, items = []) {
+    const sId = Number(id);
+    const t = safeText(title);
+    if (!t) throw new Error("title is required");
+
+    db.prepare("UPDATE setlists SET title = @title WHERE id = @id").run({ id: sId, title: t });
+
+    // Re-create items
+    db.prepare("DELETE FROM setlist_items WHERE setlist_id = @id").run({ id: sId });
+    
+    if (items.length > 0) {
+        const insertItem = db.prepare("INSERT INTO setlist_items (setlist_id, song_id, order_index) VALUES (@setlist_id, @song_id, @order_index)");
+        const tx = db.transaction((items) => {
+            for (let i = 0; i < items.length; i++) {
+                insertItem.run({ setlist_id: sId, song_id: Number(items[i]), order_index: i });
+            }
+        });
+        tx(items);
+    }
+}
+
+function deleteSetlist(id) {
+    const sId = Number(id);
+    db.prepare("DELETE FROM setlist_items WHERE setlist_id = @id").run({ id: sId });
+    db.prepare("DELETE FROM setlists WHERE id = @id").run({ id: sId });
+}
+
 module.exports = {
     ensureMigrations,
     initDb,
@@ -325,7 +423,13 @@ module.exports = {
     deleteSong,
     createRoom,
     updateRoomLeader,
+    updateRoomSong,
     getRoom,
     deleteRoom,
     listRecentRooms,
+    listSetlists,
+    getSetlist,
+    createSetlist,
+    updateSetlist,
+    deleteSetlist,
 };

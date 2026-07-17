@@ -123,6 +123,14 @@ export default function Home() {
     const [fullscreen, setFullscreen] = useState(false);
     const [fullscreenSupported, setFullscreenSupported] = useState(true);
     const [lastRoomId, setLastRoomId] = useState<string | null>(null);
+    const [setlists, setSetlists] = useState<{id: number; title: string; created_at: string}[]>([]);
+    const [hideHeader, setHideHeader] = useState(false);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined' && window.location.search.includes('search=1')) {
+            setHideHeader(true);
+        }
+    }, []);
 
     useEffect(() => {
         const handleFullscreenChange = () => {
@@ -319,6 +327,22 @@ export default function Home() {
 
     useEffect(() => {
         let cancelled = false;
+        async function loadSetlists() {
+            try {
+                const res = await fetch(`/api/setlists`);
+                if (!res.ok) return;
+                const data = await res.json();
+                if (!cancelled) setSetlists(data.setlists || []);
+            } catch (e) {}
+        }
+        if (isAdmin) {
+            loadSetlists();
+        }
+        return () => { cancelled = true; };
+    }, [isAdmin]);
+
+    useEffect(() => {
+        let cancelled = false;
 
         async function loadSongs() {
             setLoading(true);
@@ -360,10 +384,31 @@ export default function Home() {
                 body: JSON.stringify({
                     songId,
                     leaderId,
+                    roomId: lastRoomId || undefined,
                 }),
             });
 
             if (!res.ok) throw new Error('Failed to create room');
+            const data = (await res.json()) as { ok: boolean; roomId: string };
+
+            if (!data.roomId) throw new Error('Room id missing');
+            router.push(`/room/${data.roomId}`);
+        } catch (e) {
+            setError(e instanceof Error ? e.message : 'Unknown error');
+        }
+    }
+
+    async function createRoomForSetlist(setlistId: number) {
+        setError(null);
+        try {
+            const leaderId = getUserId();
+            const res = await fetch(`/api/room`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ setlistId, leaderId, roomId: lastRoomId || undefined }),
+            });
+
+            if (!res.ok) throw new Error('Failed to create room from setlist');
             const data = (await res.json()) as { ok: boolean; roomId: string };
 
             if (!data.roomId) throw new Error('Room id missing');
@@ -434,7 +479,8 @@ export default function Home() {
     return (
         <main className="min-h-screen bg-white text-black dark:bg-black dark:text-white">
             <div className="mx-auto w-full max-w-3xl p-4 pb-12">
-                <header className="mb-5 flex flex-col gap-4">
+                {!hideHeader && (
+                    <header className="mb-5 flex flex-col gap-4">
                     <div className="flex items-center justify-between gap-3">
                         <h1 className="text-3xl font-black tracking-tight shrink-0">
                             SingSync
@@ -535,6 +581,7 @@ export default function Home() {
                         )}
                     </div>
                 </header>
+                )}
 
                 <div className="sticky top-0 z-50 mb-6 py-2 -mt-2 bg-white dark:bg-black space-y-4 shadow-[0_10px_10px_-10px_rgba(0,0,0,0.1)] dark:shadow-[0_10px_10px_-10px_rgba(255,255,255,0.05)]">
                     {lastRoomId && (
@@ -544,6 +591,43 @@ export default function Home() {
                         >
                             🎤 Повернутися на вечірку {lastRoomId}
                         </Link>
+                    )}
+
+                    {isAdmin && (
+                        <section className="mb-4">
+                            <div className="flex items-center justify-between mb-3">
+                                <h2 className="text-xl font-black">Мої Плейлисти</h2>
+                                <Link href="/setlist/new" className="px-3 py-1 bg-black text-white dark:bg-white dark:text-black rounded font-bold transition active:translate-x-[1px] active:translate-y-[1px]">
+                                    + Створити
+                                </Link>
+                            </div>
+                            <div className="grid gap-2">
+                                {setlists.length === 0 && (
+                                    <div className="p-3 border-2 border-dashed border-black/30 dark:border-white/30 rounded text-sm opacity-60 text-center">
+                                        Ще немає плейлистів
+                                    </div>
+                                )}
+                                {setlists.map(sl => (
+                                    <div key={sl.id} className="flex items-center justify-between p-3 border-2 border-black dark:border-white rounded bg-white dark:bg-black">
+                                        <div className="font-bold">{sl.title}</div>
+                                        <div className="flex gap-2">
+                                            <button 
+                                                onClick={() => createRoomForSetlist(sl.id)}
+                                                className="px-3 py-1 border-2 border-black dark:border-white rounded text-sm font-bold transition active:translate-x-[1px] active:translate-y-[1px] flex items-center justify-center"
+                                                title="Запустити"
+                                            >
+                                                <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current">
+                                                    <path d="M8 5v14l11-7z"/>
+                                                </svg>
+                                            </button>
+                                            <Link href={`/setlist/${sl.id}`} className="px-3 py-1 border-2 border-black dark:border-white rounded text-sm font-bold transition active:translate-x-[1px] active:translate-y-[1px]" title="Редагувати">
+                                                ✎
+                                            </Link>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
                     )}
 
                     <section>

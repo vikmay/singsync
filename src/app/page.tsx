@@ -126,6 +126,7 @@ export default function Home() {
     const [setlists, setSetlists] = useState<{id: number; title: string; created_at: string}[]>([]);
     const [hideHeader, setHideHeader] = useState(false);
     const [isHost, setIsHost] = useState(false);
+    const [showPlaylists, setShowPlaylists] = useState(false);
 
     useEffect(() => {
         if (typeof window !== 'undefined' && window.location.search.includes('search=1')) {
@@ -619,41 +620,49 @@ export default function Home() {
                     {(isAdmin || isHost) && (
                     <section className="mb-4">
                         <div className="flex items-center justify-between mb-3">
-                            <h2 className="text-xl font-black">Плейлисти</h2>
+                            <button 
+                                onClick={() => setShowPlaylists(!showPlaylists)}
+                                className="flex items-center gap-2 focus:outline-none"
+                            >
+                                <h2 className="text-xl font-black">Плейлисти</h2>
+                                <svg 
+                                    viewBox="0 0 24 24" 
+                                    className={`w-6 h-6 fill-none stroke-current stroke-2 transition-transform ${showPlaylists ? 'rotate-180' : ''}`}
+                                >
+                                    <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                            </button>
                             {isAdmin && (
                                 <Link href="/setlist/new" className="px-3 py-1 bg-black text-white dark:bg-white dark:text-black rounded font-bold transition active:translate-x-[1px] active:translate-y-[1px]">
                                     + Створити
                                 </Link>
                             )}
                         </div>
-                        <div className="grid gap-2">
-                            {setlists.length === 0 && (
-                                <div className="p-3 border-2 border-dashed border-black/30 dark:border-white/30 rounded text-sm opacity-60 text-center">
-                                    Ще немає плейлистів
-                                </div>
-                            )}
-                            {setlists.map(sl => (
-                                <div key={sl.id} className="flex items-center justify-between p-3 border-2 border-black dark:border-white rounded bg-white dark:bg-black">
-                                    <div className="font-bold">{sl.title}</div>
-                                    <div className="flex gap-2">
-                                        <button 
-                                            onClick={() => createRoomForSetlist(sl.id)}
-                                            className="px-3 py-1 border-2 border-black dark:border-white rounded text-sm font-bold transition active:translate-x-[1px] active:translate-y-[1px] flex items-center justify-center"
-                                            title="Запустити"
-                                        >
-                                            <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current">
-                                                <path d="M8 5v14l11-7z"/>
-                                            </svg>
-                                        </button>
-                                        {isAdmin && (
-                                            <Link href={`/setlist/${sl.id}`} className="px-3 py-1 border-2 border-black dark:border-white rounded text-sm font-bold transition active:translate-x-[1px] active:translate-y-[1px]" title="Редагувати">
-                                                ✎
-                                            </Link>
-                                        )}
+                        {showPlaylists && (
+                            <div className="grid gap-2">
+                                {setlists.map(sl => (
+                                    <div key={sl.id} className="flex items-center justify-between p-3 border-2 border-indigo-600 dark:border-indigo-400 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-950 dark:text-indigo-50">
+                                        <div className="font-bold">{sl.title}</div>
+                                        <div className="flex gap-2">
+                                            <button 
+                                                onClick={() => createRoomForSetlist(sl.id)}
+                                                className="px-3 py-1 border-2 border-indigo-600 dark:border-indigo-400 rounded text-sm font-bold transition active:translate-x-[1px] active:translate-y-[1px] flex items-center justify-center hover:bg-indigo-100 dark:hover:bg-indigo-900"
+                                                title="Запустити"
+                                            >
+                                                <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current">
+                                                    <path d="M8 5v14l11-7z"/>
+                                                </svg>
+                                            </button>
+                                            {isAdmin && (
+                                                <Link href={`/setlist/${sl.id}`} className="px-3 py-1 border-2 border-indigo-600 dark:border-indigo-400 rounded text-sm font-bold transition active:translate-x-[1px] active:translate-y-[1px] hover:bg-indigo-100 dark:hover:bg-indigo-900" title="Редагувати">
+                                                    ✎
+                                                </Link>
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
-                        </div>
+                                ))}
+                            </div>
+                        )}
                     </section>
                     )}
 

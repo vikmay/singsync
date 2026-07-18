@@ -125,6 +125,7 @@ export default function Home() {
     const [lastRoomId, setLastRoomId] = useState<string | null>(null);
     const [setlists, setSetlists] = useState<{id: number; title: string; created_at: string}[]>([]);
     const [hideHeader, setHideHeader] = useState(false);
+    const [isHost, setIsHost] = useState(false);
 
     useEffect(() => {
         if (typeof window !== 'undefined' && window.location.search.includes('search=1')) {
@@ -295,6 +296,30 @@ export default function Home() {
         }
     }, []);
 
+    useEffect(() => {
+        if (!lastRoomId) {
+            setIsHost(false);
+            return;
+        }
+        let cancelled = false;
+        fetch(`/api/room/${lastRoomId}`)
+            .then(res => res.json())
+            .then(data => {
+                if (!cancelled) {
+                    if (data.room && data.room.leaderId === getUserId()) {
+                        setIsHost(true);
+                    } else {
+                        setIsHost(false);
+                    }
+                }
+            })
+            .catch(() => {
+                if (!cancelled) setIsHost(false);
+            });
+            
+        return () => { cancelled = true; };
+    }, [lastRoomId]);
+
     const trimmedQuery = useMemo(() => query.trim(), [query]);
 
     function fetchActiveRooms() {
@@ -335,11 +360,9 @@ export default function Home() {
                 if (!cancelled) setSetlists(data.setlists || []);
             } catch (e) {}
         }
-        if (isAdmin) {
-            loadSetlists();
-        }
+        loadSetlists();
         return () => { cancelled = true; };
-    }, [isAdmin]);
+    }, []);
 
     useEffect(() => {
         let cancelled = false;
@@ -593,41 +616,45 @@ export default function Home() {
                         </Link>
                     )}
 
-                    {isAdmin && (
-                        <section className="mb-4">
-                            <div className="flex items-center justify-between mb-3">
-                                <h2 className="text-xl font-black">Мої Плейлисти</h2>
+                    {(isAdmin || isHost) && (
+                    <section className="mb-4">
+                        <div className="flex items-center justify-between mb-3">
+                            <h2 className="text-xl font-black">Плейлисти</h2>
+                            {isAdmin && (
                                 <Link href="/setlist/new" className="px-3 py-1 bg-black text-white dark:bg-white dark:text-black rounded font-bold transition active:translate-x-[1px] active:translate-y-[1px]">
                                     + Створити
                                 </Link>
-                            </div>
-                            <div className="grid gap-2">
-                                {setlists.length === 0 && (
-                                    <div className="p-3 border-2 border-dashed border-black/30 dark:border-white/30 rounded text-sm opacity-60 text-center">
-                                        Ще немає плейлистів
-                                    </div>
-                                )}
-                                {setlists.map(sl => (
-                                    <div key={sl.id} className="flex items-center justify-between p-3 border-2 border-black dark:border-white rounded bg-white dark:bg-black">
-                                        <div className="font-bold">{sl.title}</div>
-                                        <div className="flex gap-2">
-                                            <button 
-                                                onClick={() => createRoomForSetlist(sl.id)}
-                                                className="px-3 py-1 border-2 border-black dark:border-white rounded text-sm font-bold transition active:translate-x-[1px] active:translate-y-[1px] flex items-center justify-center"
-                                                title="Запустити"
-                                            >
-                                                <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current">
-                                                    <path d="M8 5v14l11-7z"/>
-                                                </svg>
-                                            </button>
+                            )}
+                        </div>
+                        <div className="grid gap-2">
+                            {setlists.length === 0 && (
+                                <div className="p-3 border-2 border-dashed border-black/30 dark:border-white/30 rounded text-sm opacity-60 text-center">
+                                    Ще немає плейлистів
+                                </div>
+                            )}
+                            {setlists.map(sl => (
+                                <div key={sl.id} className="flex items-center justify-between p-3 border-2 border-black dark:border-white rounded bg-white dark:bg-black">
+                                    <div className="font-bold">{sl.title}</div>
+                                    <div className="flex gap-2">
+                                        <button 
+                                            onClick={() => createRoomForSetlist(sl.id)}
+                                            className="px-3 py-1 border-2 border-black dark:border-white rounded text-sm font-bold transition active:translate-x-[1px] active:translate-y-[1px] flex items-center justify-center"
+                                            title="Запустити"
+                                        >
+                                            <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current">
+                                                <path d="M8 5v14l11-7z"/>
+                                            </svg>
+                                        </button>
+                                        {isAdmin && (
                                             <Link href={`/setlist/${sl.id}`} className="px-3 py-1 border-2 border-black dark:border-white rounded text-sm font-bold transition active:translate-x-[1px] active:translate-y-[1px]" title="Редагувати">
                                                 ✎
                                             </Link>
-                                        </div>
+                                        )}
                                     </div>
-                                ))}
-                            </div>
-                        </section>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
                     )}
 
                     <section>

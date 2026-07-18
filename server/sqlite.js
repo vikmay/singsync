@@ -9,6 +9,14 @@ function openDb(dbPath) {
     // SQLite synchronous + WAL for better realtime behavior
     db.pragma("journal_mode = WAL");
     db.function("ua_lower", (s) => (s ? String(s).toLowerCase() : ""));
+    db.function("ua_sort_key", (s) => {
+        if (!s) return "";
+        return String(s).toLowerCase()
+            .replace(/ґ/g, 'г\u0300')
+            .replace(/є/g, 'е\u0300')
+            .replace(/і/g, 'и\u0300')
+            .replace(/ї/g, 'и\u0301');
+    });
     return db;
 }
 
@@ -111,7 +119,7 @@ function listSongs({ query } = {}) {
     if (!q) {
         return db
             .prepare(
-                "SELECT id, title, artist, created_at FROM songs ORDER BY ua_lower(title) ASC, ua_lower(artist) ASC LIMIT 200"
+                "SELECT id, title, artist, created_at FROM songs ORDER BY ua_sort_key(title) ASC, ua_sort_key(artist) ASC LIMIT 200"
             )
             .all();
     }
@@ -135,7 +143,7 @@ function listSongs({ query } = {}) {
       SELECT id, title, artist, created_at
       FROM songs
       WHERE ${whereClause}
-      ORDER BY ua_lower(title) ASC, ua_lower(artist) ASC
+      ORDER BY ua_sort_key(title) ASC, ua_sort_key(artist) ASC
       LIMIT 200
     `
         )

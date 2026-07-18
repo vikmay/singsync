@@ -426,30 +426,49 @@ async function main() {
                         return res.status(400).json({ error: "songId or valid setlistId is required" });
                     }
 
-                    if (!roomId) {
-                        roomId = Math.floor(1000 + Math.random() * 9000).toString();
+                    let isUpdatingExistingSetlist = false;
+                    const existingRoom = roomId ? getRoom(roomId) : null;
+
+                    if (existingRoom && body.setlistId) {
+                        isUpdatingExistingSetlist = true;
+                        const { updateRoomSong } = require("./sqlite");
+                        updateRoomSong(roomId, Number(initialSongId));
+                    } else {
+                        if (!roomId) {
+                            roomId = Math.floor(1000 + Math.random() * 9000).toString();
+                        }
+                        // Persist room in DB
+                        createRoom({ roomId, songId: Number(initialSongId), leaderId });
                     }
 
-                    // Persist room in DB
-                    createRoom({ roomId, songId: Number(initialSongId), leaderId });
-
                     // Seed in-memory state so first socket join has consistent data
-                    const { clearedRoomIds } = setLeader(roomId, leaderId);
+                    if (!isUpdatingExistingSetlist) {
+                        const { clearedRoomIds } = setLeader(roomId, leaderId);
+                        // Notify other rooms that they lost this leader
+                        for (const clearedId of clearedRoomIds) {
+                            io.to(clearedId).emit("leader_change", {
+                                roomId: clearedId,
+                                leaderId: "",
+                                timestamp: Date.now(),
+                            });
+                        }
+                    }
+
                     setSong(roomId, Number(initialSongId));
                     
                     const { setQueue } = require("./roomState");
                     setQueue(roomId, queueItems);
 
-                    // Notify other rooms that they lost this leader
-                    for (const clearedId of clearedRoomIds) {
-                        io.to(clearedId).emit("leader_change", {
-                            roomId: clearedId,
-                            leaderId: "",
+                    if (isUpdatingExistingSetlist) {
+                        io.to(roomId).emit("song_change", {
+                            roomId,
+                            songId: Number(initialSongId),
                             timestamp: Date.now(),
                         });
+                        io.to(roomId).emit("queue_update", queueItems);
                     }
 
-                    res.json({ ok: true, roomId, songId: Number(initialSongId), leaderId });
+                    res.json({ ok: true, roomId, songId: Number(initialSongId), leaderId: isUpdatingExistingSetlist ? (existingRoom.leader_id || leaderId) : leaderId });
                 } catch (e) {
                     return res.status(500).json({ error: "Failed to create room" });
                 }

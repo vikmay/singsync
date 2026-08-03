@@ -9,7 +9,7 @@ import { showConfirm, showPrompt } from '@/lib/dialog';
 export default function VisualChordEditor({
     rawLines,
     fontScale = 1.0,
-    showChords = true,
+    showChords = false,
     onChange
 }: {
     rawLines: string;

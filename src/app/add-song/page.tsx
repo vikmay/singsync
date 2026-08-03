@@ -24,7 +24,7 @@ export default function AddSongPage() {
     const cursorRef = useRef<{ start: number, end: number } | null>(null);
     const [defaultFontScale, setDefaultFontScale] = useState(1.0);
     const [defaultAutoScrollSpeed, setDefaultAutoScrollSpeed] = useState<number>(0.10);
-    const [showChords, setShowChords] = useState(true);
+    const [showChords, setShowChords] = useState(false);
     const [isEditingText, setIsEditingText] = useState(false);
     const [fullscreen, setFullscreen] = useState(false);
     const [fullscreenSupported, setFullscreenSupported] = useState(true);
@@ -526,7 +526,7 @@ export default function AddSongPage() {
                                 <VisualChordEditor 
                                     rawLines={rawLines}
                                     fontScale={defaultFontScale}
-                                    showChords={true}
+                                    showChords={showChords}
                                     onChange={(val) => { setRawLines(val); }}
                                 />
                             ) : (
